@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>乱数表ジェネレーター（混合対応）</title>
+  <style>
+    :root { --w: 980px; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background:#f6f7f9; }
+    header { background:#111827; color:#fff; padding:16px; }
+    header h1 { margin:0; font-size:18px; }
+    main { max-width: var(--w); margin: 0 auto; padding: 16px; }
+    .card { background:#fff; border-radius:12px; padding: 14px; margin: 12px 0; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    label { font-size:12px; color:#374151; display:block; margin-bottom:6px; }
+    input, textarea, select, button {
+      font: inherit; border:1px solid #d1d5db; border-radius:10px; padding:10px; background:#fff;
+    }
+    textarea { width:100%; min-height:120px; }
+    .field { flex:1 1 220px; }
+    .btns { display:flex; gap:10px; flex-wrap:wrap; }
+    button { cursor:pointer; }
+    button.primary { background:#111827; color:#fff; border-color:#111827; }
+    button.ghost { background:#fff; }
+    .hint { font-size:12px; color:#6b7280; margin-top:6px; }
+    .out h2 { margin: 0 0 10px; font-size: 16px; }
+    .round { border:1px solid #e5e7eb; border-radius:12px; padding:12px; margin: 10px 0; }
+    .round-title { font-weight:700; margin-bottom: 8px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-top:1px solid #e5e7eb; padding:10px; vertical-align: top; }
+    th { text-align:left; color:#374151; width:120px; }
+
+    /* 印刷（A4縦） */
+    @media print {
+      body { background:#fff; }
+      header, .controls { display:none !important; }
+      main { max-width: none; padding: 0; }
+      .card { box-shadow:none; border-radius:0; padding: 0; margin: 0; }
+      .round { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>乱数表ジェネレーター（混合ダブルス対応）</h1>
+  </header>
+
+  <main>
+    <div class="card controls">
+      <div class="row">
+        <div class="field">
+          <label>モード</label>
+          <select id="mode">
+            <option value="normal">通常（番号だけで4人を割り当て）</option>
+            <option value="mixed">混合（男×女でペアを作る）</option>
+          </select>
+          <div class="hint">混合は「男＋女」でペアを組みます（人数不足分は休憩扱い）。</div>
+        </div>
+
+        <div class="field">
+          <label>コート数</label>
+          <input id="courts" type="number" min="1" max="10" value="2" />
+          <div class="hint">A, B, C...で表示します</div>
+        </div>
+
+        <div class="field">
+          <label>ラウンド数</label>
+          <input id="rounds" type="number" min="1" max="50" value="10" />
+          <div class="hint">例：10ラウンド</div>
+        </div>
+
+        <div class="field">
+          <label>表示形式</label>
+          <select id="format">
+            <option value="line">1行（M1.F1 vs M2.F2）</option>
+            <option value="table">表（コートごとに4人表示）</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div class="field" id="normalBox">
+          <label>参加者（通常モード）</label>
+          <textarea id="players" placeholder="例）1,2,3,4,5,6,7,8
+※改行でもカンマでもOK"></textarea>
+          <div class="hint">番号でも名前でもOK（そのまま表示されます）。</div>
+        </div>
+
+        <div class="field" id="mixedBox" style="display:none;">
+          <label>男子（混合モード）</label>
+          <textarea id="men" placeholder="例）M1,M2,M3,M4,M5"></textarea>
+          <label style="margin-top:10px;">女子（混合モード）</label>
+          <textarea id="women" placeholder="例）F1,F2,F3,F4,F5,F6"></textarea>
+          <div class="hint">男と女をシャッフル→同じ順番でペア化します。</div>
+        </div>
+      </div>
+
+      <div class="btns" style="margin-top:12px;">
+        <button class="primary" id="gen">生成</button>
+        <button class="ghost" id="print">印刷</button>
+        <button class="ghost" id="clear">クリア</button>
+      </div>
+    </div>
+
+    <div class="card out">
+      <h2>出力</h2>
+      <div id="output"></div>
+    </div>
+  </main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  function parseList(text) {
+    return text
+      .split(/[\n,]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function courtName(i) {
+    return String.fromCharCode("A".charCodeAt(0) + i); // 0=>A
+  }
+
+  function chunk(arr, size) {
+    const out = [];
+    for (let i=0; i<arr.length; i+=size) out.push(arr.slice(i, i+size));
+    return out;
+  }
+
+  function renderLine(roundIdx, courts, matches) {
+    const wrap = document.createElement("div");
+    wrap.className = "round";
+    const title = document.createElement("div");
+    title.className = "round-title";
+    title.textContent = `第${roundIdx+1}ラウンド`;
+    wrap.appendChild(title);
+
+    // 1コート1行
+    matches.forEach((m, ci) => {
+      const line = document.createElement("div");
+      line.style.padding = "6px 0";
+      line.innerHTML = `<b>${courtName(ci)}コート</b>： ${m[0]} vs ${m[1]}`;
+      wrap.appendChild(line);
+    });
+
+    return wrap;
+  }
+
+  function renderTable(roundIdx, matches) {
+    const wrap = document.createElement("div");
+    wrap.className = "round";
+    const title = document.createElement("div");
+    title.className = "round-title";
+    title.textContent = `第${roundIdx+1}ラウンド`;
+    wrap.appendChild(title);
+
+    const t = document.createElement("table");
+    const tb = document.createElement("tbody");
+
+    matches.forEach((m, ci) => {
+      const tr = document.createElement("tr");
+      const th = document.createElement("th");
+      th.textContent = `${courtName(ci)}コート`;
+      const td = document.createElement("td");
+      // m = [ "ペア1", "ペア2" ] だが表では中身も出す
+      td.textContent = `${m[0]}  /  ${m[1]}`;
+      tr.appendChild(th);
+      tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+
+    t.appendChild(tb);
+    wrap.appendChild(t);
+    return wrap;
+  }
+
+  function genNormal(players, courts, rounds) {
+    const perRound = courts * 4;
+    const out = [];
+    for (let r=0; r<rounds; r++) {
+      const p = shuffle(players);
+      const active = p.slice(0, perRound);
+      const groups = chunk(active, 4); // 4人=1試合
+      const matches = groups.map(g => {
+        const a = g.slice(0,2).join(".");
+        const b = g.slice(2,4).join(".");
+        return [`${a}`, `${b}`]; // "1.2" vs "3.4"
+      });
+      out.push(matches);
+    }
+    return out;
+  }
+
+  function genMixed(men, women, courts, rounds) {
+    const perRound = courts * 4;
+    // 混合は「ペア数 = コート数*2」必要。→ 男女それぞれ最低その人数が必要。
+    const pairsNeeded = courts * 2;
+
+    const out = [];
+    for (let r=0; r<rounds; r++) {
+      const m = shuffle(men);
+      const w = shuffle(women);
+
+      const usablePairs = Math.min(pairsNeeded, m.length, w.length);
+      const pairs = [];
+      for (let i=0; i<usablePairs; i++) {
+        pairs.push(`${m[i]}.${w[i]}`); // 例 "M1.F1"
+      }
+
+      // ペアをシャッフルして対戦にする
+      const ps = shuffle(pairs);
+      const matches = [];
+      for (let c=0; c<courts; c++) {
+        const p1 = ps[c*2] ?? "休";
+        const p2 = ps[c*2+1] ?? "休";
+        matches.push([p1, p2]);
+      }
+      out.push(matches);
+    }
+    return out;
+  }
+
+  function rebuild() {
+    const mode = $("mode").value;
+    const courts = Math.max(1, Number($("courts").value || 1));
+    const rounds = Math.max(1, Number($("rounds").value || 1));
+    const format = $("format").value;
+
+    let data;
+    if (mode === "normal") {
+      const players = parseList($("players").value);
+      if (players.length < courts*4) {
+        $("output").innerHTML = `<p style="color:#b91c1c;">参加者が足りません（最低 ${courts*4} 人）</p>`;
+        return;
+      }
+      data = genNormal(players, courts, rounds);
+    } else {
+      const men = parseList($("men").value);
+      const women = parseList($("women").value);
+      if (men.length === 0 || women.length === 0) {
+        $("output").innerHTML = `<p style="color:#b91c1c;">男子・女子を入力してください</p>`;
+        return;
+      }
+      data = genMixed(men, women, courts, rounds);
+    }
+
+    const out = $("output");
+    out.innerHTML = "";
+    data.forEach((matches, r) => {
+      out.appendChild(format === "line"
+        ? renderLine(r, courts, matches)
+        : renderTable(r, matches)
+      );
+    });
+  }
+
+  $("mode").addEventListener("change", () => {
+    const isMixed = $("mode").value === "mixed";
+    $("normalBox").style.display = isMixed ? "none" : "block";
+    $("mixedBox").style.display = isMixed ? "block" : "none";
+  });
+
+  $("gen").addEventListener("click", rebuild);
+  $("print").addEventListener("click", () => window.print());
+  $("clear").addEventListener("click", () => {
+    $("players").value = "";
+    $("men").value = "";
+    $("women").value = "";
+    $("output").innerHTML = "";
+  });
+</script>
+</body>
+</html>
