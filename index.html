@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>ダブルス乱数表（混合・男女別）</title>
+<title>乱数表（混合・男女別 / ダブルス・シングルス）</title>
 
 <!-- PWA（そのまま） -->
 <link rel="manifest" href="manifest.json">
@@ -47,6 +47,7 @@ th{width:120px;text-align:left;color:#374151;font-weight:800}
   min-width:48px;padding:10px 14px;border:3px dashed #9ca3af;border-radius:12px;
   color:#6b7280;font-size:22px;font-weight:900;font-style:italic;background:#f9fafb
 }
+
 .vs{font-weight:900;font-size:18px;margin:0 6px}
 .subhead{font-weight:800;margin:10px 0 6px}
 .small{font-size:12px;color:#6b7280}
@@ -67,12 +68,20 @@ th{width:120px;text-align:left;color:#374151;font-weight:800}
 
 <body>
 <header>
-  <h1>ダブルス乱数表（混合・男女別）</h1>
+  <h1>乱数表（混合・男女別 / ダブルス・シングルス）</h1>
 </header>
 
 <main>
 <div class="card controls">
   <div class="row">
+    <div class="field">
+      <label>種目</label>
+      <select id="gameType">
+        <option value="doubles" selected>ダブルス</option>
+        <option value="singles">シングルス</option>
+      </select>
+    </div>
+
     <div class="field">
       <label>モード</label>
       <select id="mode">
@@ -119,14 +128,17 @@ th{width:120px;text-align:left;color:#374151;font-weight:800}
       </select>
     </div>
 
-    <div class="field" style="flex:1 1 260px">
+    <div class="field" style="flex:1 1 280px">
       <label>重複回避</label>
       <select id="avoidMode">
         <option value="off">OFF（回避しない）</option>
         <option value="soft" selected>回避ON（できるだけ回避）</option>
-        <option value="strict">同ペア完全禁止（破らない）</option>
+        <option value="strict">完全禁止（破らない）</option>
       </select>
-      <div class="small">※完全禁止では、条件により「休」が増える場合があります（禁則は破りません）</div>
+      <div class="small">
+        ・ダブルス strict：同ペア完全禁止（足りない分は休）<br>
+        ・シングルス strict：同一対戦（同じ相手）完全禁止（足りない分は休）
+      </div>
     </div>
   </div>
 
@@ -178,37 +190,26 @@ function pickByLeastGames(list, counts, need, balanceOn){
   return picked;
 }
 
-// ===== 重複キー =====
+// ===== キー =====
 const u = (a,b) => (a<b ? `${a}~${b}` : `${b}~${a}`);
-const pmix = (m,f) => `${m}|${f}`;    // 混合ペアキー
-const p2 = (a,b) => u(a,b);           // 同性ペアキー
+const pmixPair = (m,f) => `${m}|${f}`;     // 混合ダブルスのペア（男|女）
+const p2Pair   = (a,b) => u(a,b);          // 同性ダブルスのペア（順不同）
+const playerId = (sex, n) => `${sex}${n}`; // M1 / F3
+const singlesKey = (p,q) => (p<q ? `${p}~${q}` : `${q}~${p}`); // シングルスの対戦（相手）キー
 
-const matchupKey = (A,B) => {         // ペア同士の対戦カード（順不同）
+const matchupKey = (A,B) => { // ダブルス：2ペア同士のカード（順不同）
   const a = JSON.stringify(A), b = JSON.stringify(B);
   return (a<b) ? `${a}||${b}` : `${b}||${a}`;
 };
-const playerId = (sex, n) => `${sex}${n}`; // M1, F3
-const oppKey = (p,q) => (p<q ? `${p}~${q}` : `${q}~${p}`);
 
-// ===== 回避スコア（soft用）=====
-function scoreSchedule(tracking, newPairs, newMatchups, newOppEdges){
-  let repPairs=0, repMatchups=0, repOpp=0;
-  for(const k of newPairs) if(tracking.pairsUsed.has(k)) repPairs++;
-  for(const k of newMatchups) if(tracking.matchupsUsed.has(k)) repMatchups++;
-  for(const k of newOppEdges) if(tracking.opponentsUsed.has(k)) repOpp++;
-  // 優先度：同ペア > 同カード > 対面相手
-  return repPairs*100 + repMatchups*20 + repOpp*5;
-}
-
-// ===== strict用：混合最大マッチング（Hopcroft–Karp）=====
-// menPool, womenPool から「未使用ペアのみ」で最大数だけペアを作る
-function maxMatchingMixed(menPool, womenPool, usedPairsSet){
-  // 隣接：男 -> 候補女
+// ===== strict用：混合（最大マッチング）=====
+// edgesAllowed(m,f) が true のときのみマッチ可
+function maxMatchingBipartite(menPool, womenPool, edgesAllowed){
   const adj = new Map();
   for(const m of menPool){
     const cand=[];
     for(const f of womenPool){
-      if(!usedPairsSet.has(pmix(m,f))) cand.push(f);
+      if(edgesAllowed(m,f)) cand.push(f);
     }
     adj.set(m, cand);
   }
@@ -221,21 +222,16 @@ function maxMatchingMixed(menPool, womenPool, usedPairsSet){
   function bfs(){
     const q=[];
     for(const m of menPool){
-      if(!pairU.has(m)){
-        dist.set(m, 0);
-        q.push(m);
-      }else{
-        dist.set(m, INF);
-      }
+      if(!pairU.has(m)){ dist.set(m, 0); q.push(m); }
+      else dist.set(m, INF);
     }
-    let found = false;
+    let found=false;
     while(q.length){
-      const m = q.shift();
+      const m=q.shift();
       for(const f of adj.get(m)){
         const m2 = pairV.get(f);
-        if(m2 === undefined){
-          found = true;
-        }else if(dist.get(m2) === INF){
+        if(m2 === undefined) found=true;
+        else if(dist.get(m2) === INF){
           dist.set(m2, dist.get(m)+1);
           q.push(m2);
         }
@@ -248,8 +244,7 @@ function maxMatchingMixed(menPool, womenPool, usedPairsSet){
     for(const f of adj.get(m)){
       const m2 = pairV.get(f);
       if(m2 === undefined || (dist.get(m2) === dist.get(m)+1 && dfs(m2))){
-        pairU.set(m,f);
-        pairV.set(f,m);
+        pairU.set(m,f); pairV.set(f,m);
         return true;
       }
     }
@@ -258,227 +253,117 @@ function maxMatchingMixed(menPool, womenPool, usedPairsSet){
   }
 
   while(bfs()){
-    for(const m of menPool){
-      if(!pairU.has(m)) dfs(m);
-    }
+    for(const m of menPool) if(!pairU.has(m)) dfs(m);
   }
 
-  const pairs=[];
-  for(const [m,f] of pairU.entries()) pairs.push([m,f]);
-  return pairs; // 最大数
+  const res=[];
+  for(const [m,f] of pairU.entries()) res.push([m,f]);
+  return res;
 }
 
-// ===== strict用：同性ペア（再帰で「作れるだけ」作る）=====
-function maxPairsSameSex(players, usedPairsSet){
-  // 禁則ペアを避けつつ、できるだけ多くペアを作る（最大化）
+// strict用：同性（作れるだけ多く）ペア/シングルス組み合わせ（最大化）
+function maxPairsSameSex(players, usedSet, keyFn){
   const ids = players.slice();
-  const used = new Set(ids.map(x=>x)); // 早期確認用
-  let best=[];
-
-  // 候補相手リスト
   const avail = new Map();
   for(const a of ids){
     const cand=[];
     for(const b of ids){
       if(a===b) continue;
-      if(!usedPairsSet.has(p2(a,b))) cand.push(b);
+      if(!usedSet.has(keyFn(a,b))) cand.push(b);
     }
     avail.set(a, cand);
   }
-
-  // 未使用の人集合
   const remaining = new Set(ids);
+  let best=[];
 
   function pickNext(){
-    // 残りから「候補が少ない人」を選ぶ（枝刈り）
     let chosen=null, min=1e9;
     for(const a of remaining){
       let c=0;
       for(const b of avail.get(a)) if(remaining.has(b)) c++;
-      if(c < min){ min=c; chosen=a; }
+      if(c<min){ min=c; chosen=a; }
       if(min===0) break;
     }
     return chosen;
   }
 
   function dfs(current){
-    // 上限見込みで枝刈り
-    const remCount = remaining.size;
-    const maxPossible = current.length + Math.floor(remCount/2);
-    if(maxPossible <= best.length) return;
+    const rem=remaining.size;
+    const upper = current.length + Math.floor(rem/2);
+    if(upper <= best.length) return;
 
     if(remaining.size < 2){
       if(current.length > best.length) best = current.slice();
       return;
     }
-
     const a = pickNext();
     if(a==null){
       if(current.length > best.length) best = current.slice();
       return;
     }
 
-    // a を休にする分岐（ペア作れない時の逃げ道）
+    // a を休にする
     remaining.delete(a);
     dfs(current);
     remaining.add(a);
 
-    // a を誰かと組む分岐
+    // a を誰かと組む
     for(const b of avail.get(a)){
       if(!remaining.has(b)) continue;
-      remaining.delete(a);
-      remaining.delete(b);
+      remaining.delete(a); remaining.delete(b);
       current.push([a,b]);
       dfs(current);
       current.pop();
-      remaining.add(a);
-      remaining.add(b);
+      remaining.add(a); remaining.add(b);
     }
   }
-
   dfs([]);
-  return best; // 最大数ペア（完全禁止は守る）
+  return best;
 }
 
-// ===== soft用：ペア作成（できるだけ回避）=====
-function bestMixedPairsSoft(menSel, womenSel, usedPairs, tries){
+// ===== soft用：ランダム試行で良い解を探す =====
+function softBestByTries(makeCandidateFn, scoreFn, tries){
   let best=null, bestScore=Infinity;
   for(let t=0;t<tries;t++){
-    const M=shuffle(menSel), W=shuffle(womenSel);
-    const pairs=[];
-    let rep=0;
-    const n=Math.min(M.length,W.length);
-    for(let i=0;i<n;i++){
-      const k=pmix(M[i],W[i]);
-      if(usedPairs.has(k)) rep++;
-      pairs.push([M[i],W[i]]);
-    }
-    const s=rep*100;
-    if(s<bestScore){ bestScore=s; best=pairs; if(s===0) break; }
+    const cand = makeCandidateFn();
+    const s = scoreFn(cand);
+    if(s < bestScore){ bestScore=s; best=cand; if(s===0) break; }
   }
-  return best ?? [];
-}
-
-function bestSameSexPairsSoft(playersSel, usedPairs, tries){
-  let best=null, bestScore=Infinity;
-  for(let t=0;t<tries;t++){
-    const A=shuffle(playersSel);
-    const pairs=[];
-    let rep=0;
-    for(let i=0;i+1<A.length;i+=2){
-      const k=p2(A[i],A[i+1]);
-      if(usedPairs.has(k)) rep++;
-      pairs.push([A[i],A[i+1]]);
-    }
-    const s=rep*100;
-    if(s<bestScore){ bestScore=s; best=pairs; if(s===0) break; }
-  }
-  return best ?? [];
-}
-
-// ===== 試合（カード/対面相手も soft回避）=====
-function bestMatchesFromPairsSoft(pairs, courts, tracking, tries, makeOppEdgesFn){
-  const needPairs=courts*2;
-  const usable=Math.min(needPairs, pairs.length);
-  const base=pairs.slice(0, usable);
-
-  let best=null, bestScore=Infinity;
-  for(let t=0;t<tries;t++){
-    const ps=shuffle(base);
-    const matches=[];
-    const newPairs=[];
-    const newMatchups=[];
-    const newOpp=[];
-    for(let c=0;c<courts;c++){
-      const a=ps[c*2]??null;
-      const b=ps[c*2+1]??null;
-      matches.push([a,b]);
-      if(a){
-        // a は [m,f] or [x,y]
-        // ペアキーは呼び出し側で作るのでここでは空
-      }
-      if(a && b){
-        newMatchups.push(matchupKey(a,b));
-        for(const e of makeOppEdgesFn(a,b)) newOpp.push(e);
-      }
-    }
-    const s=scoreSchedule(tracking, newPairs, newMatchups, newOpp);
-    if(s<bestScore){ bestScore=s; best=matches; if(s===0) break; }
-  }
-  return best ?? Array.from({length:courts}, ()=>[null,null]);
+  return best;
 }
 
 // ===== 表示 =====
-function renderRoundMixed(r, courts, matches){
-  const round=document.createElement("div");
-  round.className="round";
-  if((r+1)%10===0) round.classList.add("pagebreak");
-  round.innerHTML=`<div class="round-title">第${r+1}ラウンド</div>`;
-  const t=document.createElement("table"), tb=document.createElement("tbody");
+function renderRoundTitle(r){
+  return `<div class="round-title">第${r+1}ラウンド</div>`;
+}
 
+function wrapRound(r){
+  const d=document.createElement("div");
+  d.className="round";
+  if((r+1)%10===0) d.classList.add("pagebreak");
+  d.innerHTML = renderRoundTitle(r);
+  return d;
+}
+
+function renderTableRows(courts, rowHtmlFn){
+  const t=document.createElement("table"), tb=document.createElement("tbody");
   for(let c=0;c<courts;c++){
     const tr=document.createElement("tr");
-    const th=document.createElement("th"); th.textContent=`${courtName(c)}コート`;
-    const td=document.createElement("td");
-    const [p1,p2]=matches[c];
-    const L = p1 ? `<span class="pair">${boxMale(p1[0])}${boxFemale(p1[1])}</span>` : boxRest();
-    const R = p2 ? `<span class="pair">${boxMale(p2[0])}${boxFemale(p2[1])}</span>` : boxRest();
-    td.innerHTML=`<div class="match">${L}<span class="vs">vs</span>${R}</div>`;
-    tr.appendChild(th); tr.appendChild(td); tb.appendChild(tr);
+    tr.innerHTML = `<th>${courtName(c)}コート</th><td>${rowHtmlFn(c)}</td>`;
+    tb.appendChild(tr);
   }
-  t.appendChild(tb); round.appendChild(t);
-  return round;
+  t.appendChild(tb);
+  return t;
 }
 
-function renderRoundSeparate(r, boysCourts, girlsCourts, boysMatches, girlsMatches){
-  const round=document.createElement("div");
-  round.className="round";
-  if((r+1)%10===0) round.classList.add("pagebreak");
-  round.innerHTML=`<div class="round-title">第${r+1}ラウンド</div>`;
-
-  if(boysCourts>0){
-    round.innerHTML+=`<div class="subhead">男子</div>`;
-    const t=document.createElement("table"),tb=document.createElement("tbody");
-    for(let c=0;c<boysCourts;c++){
-      const tr=document.createElement("tr");
-      const th=document.createElement("th"); th.textContent=`${courtName(c)}コート`;
-      const td=document.createElement("td");
-      const [p1,p2]=boysMatches[c];
-      const L = p1 ? `<span class="pair">${boxMale(p1[0])}${boxMale(p1[1])}</span>` : boxRest();
-      const R = p2 ? `<span class="pair">${boxMale(p2[0])}${boxMale(p2[1])}</span>` : boxRest();
-      td.innerHTML=`<div class="match">${L}<span class="vs">vs</span>${R}</div>`;
-      tr.appendChild(th); tr.appendChild(td); tb.appendChild(tr);
-    }
-    t.appendChild(tb); round.appendChild(t);
-  }
-
-  if(girlsCourts>0){
-    round.innerHTML+=`<div class="subhead">女子</div>`;
-    const t=document.createElement("table"),tb=document.createElement("tbody");
-    for(let c=0;c<girlsCourts;c++){
-      const tr=document.createElement("tr");
-      const th=document.createElement("th"); th.textContent=`${courtName(c)}コート`;
-      const td=document.createElement("td");
-      const [p1,p2]=girlsMatches[c];
-      const L = p1 ? `<span class="pair">${boxFemale(p1[0])}${boxFemale(p1[1])}</span>` : boxRest();
-      const R = p2 ? `<span class="pair">${boxFemale(p2[0])}${boxFemale(p2[1])}</span>` : boxRest();
-      td.innerHTML=`<div class="match">${L}<span class="vs">vs</span>${R}</div>`;
-      tr.appendChild(th); tr.appendChild(td); tb.appendChild(tr);
-    }
-    t.appendChild(tb); round.appendChild(t);
-  }
-  return round;
-}
-
-// ===== サマリー =====
 function renderSummary(menGames, womenGames){
   const menArr = Object.entries(menGames).map(([k,v])=>({id:Number(k), games:v})).sort((a,b)=>a.id-b.id);
   const womenArr = Object.entries(womenGames).map(([k,v])=>({id:Number(k), games:v})).sort((a,b)=>a.id-b.id);
 
-  const maxM = Math.max(0, ...menArr.map(x=>x.games));
-  const minM = Math.min(...menArr.map(x=>x.games), 0);
-  const maxW = Math.max(0, ...womenArr.map(x=>x.games));
-  const minW = Math.min(...womenArr.map(x=>x.games), 0);
+  const maxM = menArr.length ? Math.max(...menArr.map(x=>x.games)) : 0;
+  const minM = menArr.length ? Math.min(...menArr.map(x=>x.games)) : 0;
+  const maxW = womenArr.length ? Math.max(...womenArr.map(x=>x.games)) : 0;
+  const minW = womenArr.length ? Math.min(...womenArr.map(x=>x.games)) : 0;
 
   const rowPills = (arr, type)=> arr.map(x=>{
     const box = type==="m" ? boxMale(x.id) : boxFemale(x.id);
@@ -495,234 +380,480 @@ function renderSummary(menGames, womenGames){
   `;
 }
 
-// ===== 生成 =====
+// ===== メイン生成 =====
 function generate(){
   const status = document.getElementById("status");
   status.textContent = "";
 
-  const mode=document.getElementById("mode").value;
-  const rounds=Math.max(1, Number(document.getElementById("rounds").value||1));
-  const menCount=Math.max(0, Number(document.getElementById("menCount").value||0));
-  const womenCount=Math.max(0, Number(document.getElementById("womenCount").value||0));
-
+  const gameType = document.getElementById("gameType").value; // doubles / singles
+  const mode = document.getElementById("mode").value;         // mixed / separate
+  const rounds = Math.max(1, Number(document.getElementById("rounds").value||1));
+  const menCount = Math.max(0, Number(document.getElementById("menCount").value||0));
+  const womenCount = Math.max(0, Number(document.getElementById("womenCount").value||0));
   const balanceOn = document.getElementById("balance").value==="on";
-  const avoidMode = document.getElementById("avoidMode").value; // off / soft / strict
+  const avoidMode = document.getElementById("avoidMode").value; // off/soft/strict
 
-  const men=makeList(menCount);
-  const women=makeList(womenCount);
-
+  const men = makeList(menCount);
+  const women = makeList(womenCount);
   const menGames = initCounts(menCount);
   const womenGames = initCounts(womenCount);
 
-  // 重複管理（全ラウンド共通）
+  // tracking（全ラウンド共通）
   const tracking = {
-    pairsUsed: new Set(),
-    matchupsUsed: new Set(),
-    opponentsUsed: new Set()
+    doublesPairsUsed: new Set(),   // ダブルス：同ペア完全禁止用（男|女 も 2同姓も）
+    doublesMatchupsUsed: new Set(),// ダブルス：同カード回避（soft用）
+    opponentsUsed: new Set(),      // ダブルス：対面個人の重複回避（soft用）
+    singlesMatchupsUsed: new Set() // シングルス：同一対戦（相手）管理（strict/soft用）
   };
 
-  const out=document.getElementById("output");
-  const summary=document.getElementById("summary");
-  out.innerHTML="";
-  summary.innerHTML="";
+  const out = document.getElementById("output");
+  const summary = document.getElementById("summary");
+  out.innerHTML = "";
+  summary.innerHTML = "";
 
   const PAIR_TRIES = 250;
   const MATCH_TRIES = 250;
-
-  let strictShortageCount = 0;
+  let strictShortageRounds = 0;
 
   for(let r=0;r<rounds;r++){
     if(mode==="mixed"){
-      const courts=Math.max(1, Number(document.getElementById("mixedCourts").value||1));
-      const needPairs = courts*2;
+      const courts = Math.max(1, Number(document.getElementById("mixedCourts").value||1));
+      const roundDiv = wrapRound(r);
 
-      // 出場候補選定
-      const menSel = pickByLeastGames(men, menGames, needPairs, balanceOn);
-      const womenSel = pickByLeastGames(women, womenGames, needPairs, balanceOn);
+      if(gameType==="singles"){
+        // ===== 混合シングルス：男 vs 女 =====
+        const need = courts; // 1コートに男1女1
 
-      let pairs=[];
-      if(avoidMode==="strict"){
-        // 完全禁止：未使用ペアのみで最大数
-        pairs = maxMatchingMixed(menSel, womenSel, tracking.pairsUsed);
-        // ここで pairs は最大数なので、足りない分は休
-        if(pairs.length < needPairs) strictShortageCount++;
-      } else if(avoidMode==="soft"){
-        pairs = bestMixedPairsSoft(menSel, womenSel, tracking.pairsUsed, PAIR_TRIES);
-      } else {
-        // off
-        const M=shuffle(menSel), W=shuffle(womenSel);
-        for(let i=0;i<Math.min(M.length,W.length);i++) pairs.push([M[i],W[i]]);
-      }
+        let menPool, womenPool, pairs=[];
+        if(avoidMode==="strict"){
+          // 少ない人優先でプールを少し広げて、未対戦のみで最大マッチング
+          const poolSize = Math.min(Math.max(need+2, need), men.length, women.length);
+          menPool = pickByLeastGames(men, menGames, poolSize, true);
+          womenPool = pickByLeastGames(women, womenGames, poolSize, true);
 
-      // 試合（2ペアで1試合）
-      let matches;
-      const makeOppEdges = (a,b)=>{
-        const A=[playerId("M",a[0]), playerId("F",a[1])];
-        const B=[playerId("M",b[0]), playerId("F",b[1])];
-        const edges=[];
-        for(const x of A) for(const y of B) edges.push(oppKey(x,y));
-        return edges;
-      };
+          pairs = maxMatchingBipartite(
+            menPool, womenPool,
+            (m,f)=> !tracking.singlesMatchupsUsed.has(singlesKey(playerId("M",m), playerId("F",f)))
+          );
+          if(pairs.length < need) strictShortageRounds++;
+        } else {
+          menPool = pickByLeastGames(men, menGames, need, balanceOn);
+          womenPool = pickByLeastGames(women, womenGames, need, balanceOn);
 
-      if(avoidMode==="soft"){
-        matches = bestMatchesFromPairsSoft(pairs, courts, tracking, MATCH_TRIES, makeOppEdges);
-      } else {
-        // strict/off：単純にランダムに並べて入れる（strictはペア重複がそもそも無い）
+          if(avoidMode==="soft"){
+            pairs = softBestByTries(
+              ()=>{
+                const M=shuffle(menPool), W=shuffle(womenPool);
+                const res=[];
+                for(let i=0;i<Math.min(M.length,W.length);i++) res.push([M[i],W[i]]);
+                return res;
+              },
+              (cand)=>{
+                let rep=0;
+                for(const [m,f] of cand){
+                  const k = singlesKey(playerId("M",m), playerId("F",f));
+                  if(tracking.singlesMatchupsUsed.has(k)) rep++;
+                }
+                return rep*100;
+              },
+              PAIR_TRIES
+            ) || [];
+          } else {
+            const M=shuffle(menPool), W=shuffle(womenPool);
+            for(let i=0;i<Math.min(M.length,W.length);i++) pairs.push([M[i],W[i]]);
+          }
+        }
+
+        const matches = [];
         const ps = shuffle(pairs);
-        matches=[];
         for(let c=0;c<courts;c++){
-          matches.push([ps[c*2]??null, ps[c*2+1]??null]);
+          matches.push(ps[c] ?? null); // [m,f] or null
         }
-      }
 
-      // 記録＆試合数加算
-      for(const [p1,p2] of matches){
-        if(p1){
-          tracking.pairsUsed.add(pmix(p1[0],p1[1]));
-          addGames(menGames,[p1[0]]); addGames(womenGames,[p1[1]]);
+        // 記録＆試合数加算
+        for(const mf of matches){
+          if(!mf) continue;
+          const [m,f]=mf;
+          addGames(menGames,[m]);
+          addGames(womenGames,[f]);
+          tracking.singlesMatchupsUsed.add(singlesKey(playerId("M",m), playerId("F",f)));
         }
-        if(p2){
-          tracking.pairsUsed.add(pmix(p2[0],p2[1]));
-          addGames(menGames,[p2[0]]); addGames(womenGames,[p2[1]]);
-        }
-        if(p1 && p2){
-          tracking.matchupsUsed.add(matchupKey(p1,p2));
-          for(const e of makeOppEdges(p1,p2)) tracking.opponentsUsed.add(e);
-        }
-      }
 
-      out.appendChild(renderRoundMixed(r, courts, matches));
+        const table = renderTableRows(courts, (c)=>{
+          const mf = matches[c];
+          if(!mf) return `<div class="match">${boxRest()}</div>`;
+          return `<div class="match">${boxMale(mf[0])}<span class="vs">vs</span>${boxFemale(mf[1])}</div>`;
+        });
+        roundDiv.appendChild(table);
+        out.appendChild(roundDiv);
+
+      } else {
+        // ===== 混合ダブルス： (男+女) vs (男+女) =====
+        const needPairs = courts*2;
+
+        const menSel = pickByLeastGames(men, menGames, needPairs, balanceOn);
+        const womenSel = pickByLeastGames(women, womenGames, needPairs, balanceOn);
+
+        let pairs=[];
+        if(avoidMode==="strict"){
+          // 同ペア完全禁止：未使用ペアのみで最大マッチング
+          const poolSize = Math.min(Math.max(needPairs+2, needPairs), men.length, women.length);
+          const menPool = pickByLeastGames(men, menGames, poolSize, true);
+          const womenPool = pickByLeastGames(women, womenGames, poolSize, true);
+
+          pairs = maxMatchingBipartite(
+            menPool, womenPool,
+            (m,f)=> !tracking.doublesPairsUsed.has(pmixPair(m,f))
+          );
+          if(pairs.length < needPairs) strictShortageRounds++;
+        } else if(avoidMode==="soft"){
+          pairs = softBestByTries(
+            ()=>{
+              const M=shuffle(menSel), W=shuffle(womenSel);
+              const res=[];
+              for(let i=0;i<Math.min(M.length,W.length);i++) res.push([M[i],W[i]]);
+              return res;
+            },
+            (cand)=>{
+              let rep=0;
+              for(const [m,f] of cand) if(tracking.doublesPairsUsed.has(pmixPair(m,f))) rep++;
+              return rep*100;
+            },
+            PAIR_TRIES
+          ) || [];
+        } else {
+          const M=shuffle(menSel), W=shuffle(womenSel);
+          for(let i=0;i<Math.min(M.length,W.length);i++) pairs.push([M[i],W[i]]);
+        }
+
+        // 試合（softはカード/対面も回避、strict/offは単純）
+        let matches=[];
+        const base = pairs.slice(0, Math.min(pairs.length, needPairs));
+
+        if(avoidMode==="soft"){
+          matches = softBestByTries(
+            ()=>{
+              const ps=shuffle(base);
+              const ms=[];
+              for(let c=0;c<courts;c++) ms.push([ps[c*2]??null, ps[c*2+1]??null]);
+              return ms;
+            },
+            (ms)=>{
+              // 同カード＋対面の重複を評価（同ペアは前段でなるべく回避）
+              let repMatch=0, repOpp=0;
+              for(const [a,b] of ms){
+                if(a && b){
+                  if(tracking.doublesMatchupsUsed.has(matchupKey(a,b))) repMatch++;
+                  const A=[playerId("M",a[0]), playerId("F",a[1])];
+                  const B=[playerId("M",b[0]), playerId("F",b[1])];
+                  for(const x of A) for(const y of B){
+                    const ok = (x<y?`${x}~${y}`:`${y}~${x}`);
+                    if(tracking.opponentsUsed.has(ok)) repOpp++;
+                  }
+                }
+              }
+              return repMatch*20 + repOpp*5;
+            },
+            MATCH_TRIES
+          ) || Array.from({length:courts}, ()=>[null,null]);
+        } else {
+          const ps=shuffle(base);
+          for(let c=0;c<courts;c++) matches.push([ps[c*2]??null, ps[c*2+1]??null]);
+        }
+
+        // 記録＆試合数加算
+        for(const [p1,p2] of matches){
+          if(p1){
+            tracking.doublesPairsUsed.add(pmixPair(p1[0],p1[1]));
+            addGames(menGames,[p1[0]]); addGames(womenGames,[p1[1]]);
+          }
+          if(p2){
+            tracking.doublesPairsUsed.add(pmixPair(p2[0],p2[1]));
+            addGames(menGames,[p2[0]]); addGames(womenGames,[p2[1]]);
+          }
+          if(avoidMode==="soft" && p1 && p2){
+            tracking.doublesMatchupsUsed.add(matchupKey(p1,p2));
+            const A=[playerId("M",p1[0]), playerId("F",p1[1])];
+            const B=[playerId("M",p2[0]), playerId("F",p2[1])];
+            for(const x of A) for(const y of B){
+              const ok = (x<y?`${x}~${y}`:`${y}~${x}`);
+              tracking.opponentsUsed.add(ok);
+            }
+          }
+        }
+
+        const table = renderTableRows(courts, (c)=>{
+          const [p1,p2]=matches[c];
+          const L = p1 ? `<span class="pair">${boxMale(p1[0])}${boxFemale(p1[1])}</span>` : boxRest();
+          const R = p2 ? `<span class="pair">${boxMale(p2[0])}${boxFemale(p2[1])}</span>` : boxRest();
+          return `<div class="match">${L}<span class="vs">vs</span>${R}</div>`;
+        });
+
+        roundDiv.appendChild(table);
+        out.appendChild(roundDiv);
+      }
 
     } else {
-      const bc=Math.max(0, Number(document.getElementById("boysCourts").value||0));
-      const gc=Math.max(0, Number(document.getElementById("girlsCourts").value||0));
+      // ===== 男女別 =====
+      const bc = Math.max(0, Number(document.getElementById("boysCourts").value||0));
+      const gc = Math.max(0, Number(document.getElementById("girlsCourts").value||0));
 
-      // 男子
-      let boysMatches = Array.from({length:bc}, ()=>[null,null]);
+      const roundDiv = wrapRound(r);
+
       if(bc>0){
-        const needPlayers = bc*4;
-        const menSel = pickByLeastGames(men, menGames, needPlayers, balanceOn);
+        roundDiv.innerHTML += `<div class="subhead">男子</div>`;
+        if(document.getElementById("output").childElementCount===0){} // noop
 
-        let pairs=[];
-        if(avoidMode==="strict"){
-          pairs = maxPairsSameSex(menSel, tracking.pairsUsed); // 最大数だけ（完全禁止維持）
-          if(pairs.length < bc*2) strictShortageCount++;
-        } else if(avoidMode==="soft"){
-          pairs = bestSameSexPairsSoft(menSel, tracking.pairsUsed, PAIR_TRIES);
-        } else {
-          const A=shuffle(menSel);
-          for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
-        }
+        if(document.getElementById("output")){} // noop
 
-        let matches;
-        const makeOppEdges = (a,b)=>{
-          const A=[playerId("M",a[0]), playerId("M",a[1])];
-          const B=[playerId("M",b[0]), playerId("M",b[1])];
-          const edges=[];
-          for(const x of A) for(const y of B) edges.push(oppKey(x,y));
-          return edges;
-        };
+        if(document.getElementById("output")){} // noop
+      }
 
-        if(avoidMode==="soft"){
-          matches = bestMatchesFromPairsSoft(pairs, bc, tracking, MATCH_TRIES, makeOppEdges);
-        } else {
+      // --- 男子 ---
+      if(bc>0){
+        let matches = []; // singles: [a,b] / doubles: [[a,b],[c,d]]
+        if(gameType==="singles"){
+          const needPlayers = bc*2;
+          let pool, pairs=[];
+          if(avoidMode==="strict"){
+            const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), men.length);
+            pool = pickByLeastGames(men, menGames, poolSize, true);
+            pairs = maxPairsSameSex(pool, tracking.singlesMatchupsUsed, (a,b)=>singlesKey(playerId("M",a), playerId("M",b)));
+            if(pairs.length < bc) strictShortageRounds++;
+          } else {
+            pool = pickByLeastGames(men, menGames, needPlayers, balanceOn);
+            if(avoidMode==="soft"){
+              pairs = softBestByTries(
+                ()=>{
+                  const A=shuffle(pool);
+                  const res=[];
+                  for(let i=0;i+1<A.length;i+=2) res.push([A[i],A[i+1]]);
+                  return res;
+                },
+                (cand)=>{
+                  let rep=0;
+                  for(const [a,b] of cand){
+                    const k=singlesKey(playerId("M",a), playerId("M",b));
+                    if(tracking.singlesMatchupsUsed.has(k)) rep++;
+                  }
+                  return rep*100;
+                },
+                PAIR_TRIES
+              ) || [];
+            } else {
+              const A=shuffle(pool);
+              for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
+            }
+          }
           const ps=shuffle(pairs);
-          matches=[];
-          for(let c=0;c<bc;c++){
-            matches.push([ps[c*2]??null, ps[c*2+1]??null]);
-          }
-        }
-        boysMatches = matches;
+          for(let c=0;c<bc;c++) matches.push(ps[c] ?? null);
 
-        for(const [p1,p2] of boysMatches){
-          if(p1){
-            tracking.pairsUsed.add(p2(p1[0],p1[1]));
-            addGames(menGames,[p1[0],p1[1]]);
+          for(const ab of matches){
+            if(!ab) continue;
+            const [a,b]=ab;
+            addGames(menGames,[a,b]);
+            tracking.singlesMatchupsUsed.add(singlesKey(playerId("M",a), playerId("M",b)));
           }
-          if(p2){
-            tracking.pairsUsed.add(p2(p2[0],p2[1]));
-            addGames(menGames,[p2[0],p2[1]]);
+
+          const t = renderTableRows(bc, (c)=>{
+            const ab = matches[c];
+            if(!ab) return `<div class="match">${boxRest()}</div>`;
+            return `<div class="match">${boxMale(ab[0])}<span class="vs">vs</span>${boxMale(ab[1])}</div>`;
+          });
+          roundDiv.appendChild(t);
+
+        } else {
+          // 男子ダブルス
+          const needPlayers = bc*4;
+          const menSel = pickByLeastGames(men, menGames, needPlayers, balanceOn);
+
+          let pairs=[];
+          if(avoidMode==="strict"){
+            const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), men.length);
+            const pool = pickByLeastGames(men, menGames, poolSize, true);
+            pairs = maxPairsSameSex(pool, tracking.doublesPairsUsed, (a,b)=>p2Pair(a,b));
+            if(pairs.length < bc*2) strictShortageRounds++;
+          } else if(avoidMode==="soft"){
+            pairs = softBestByTries(
+              ()=>{
+                const A=shuffle(menSel);
+                const res=[];
+                for(let i=0;i+1<A.length;i+=2) res.push([A[i],A[i+1]]);
+                return res;
+              },
+              (cand)=>{
+                let rep=0;
+                for(const [a,b] of cand) if(tracking.doublesPairsUsed.has(p2Pair(a,b))) rep++;
+                return rep*100;
+              },
+              PAIR_TRIES
+            ) || [];
+          } else {
+            const A=shuffle(menSel);
+            for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
           }
-          if(p1 && p2){
-            tracking.matchupsUsed.add(matchupKey(p1,p2));
-            for(const e of makeOppEdges(p1,p2)) tracking.opponentsUsed.add(e);
+
+          // 2ペアで1試合
+          const ps=shuffle(pairs.slice(0, Math.min(pairs.length, bc*2)));
+          const matches=[];
+          for(let c=0;c<bc;c++) matches.push([ps[c*2]??null, ps[c*2+1]??null]);
+
+          for(const [p1,p2] of matches){
+            if(p1){
+              tracking.doublesPairsUsed.add(p2Pair(p1[0],p1[1]));
+              addGames(menGames,[p1[0],p1[1]]);
+            }
+            if(p2){
+              tracking.doublesPairsUsed.add(p2Pair(p2[0],p2[1]));
+              addGames(menGames,[p2[0],p2[1]]);
+            }
           }
+
+          const t = renderTableRows(bc, (c)=>{
+            const [p1,p2]=matches[c];
+            const L = p1 ? `<span class="pair">${boxMale(p1[0])}${boxMale(p1[1])}</span>` : boxRest();
+            const R = p2 ? `<span class="pair">${boxMale(p2[0])}${boxMale(p2[1])}</span>` : boxRest();
+            return `<div class="match">${L}<span class="vs">vs</span>${R}</div>`;
+          });
+          roundDiv.appendChild(t);
         }
       }
 
-      // 女子
-      let girlsMatches = Array.from({length:gc}, ()=>[null,null]);
+      // --- 女子 ---
       if(gc>0){
-        const needPlayers = gc*4;
-        const womenSel = pickByLeastGames(women, womenGames, needPlayers, balanceOn);
+        roundDiv.innerHTML += `<div class="subhead">女子</div>`;
 
-        let pairs=[];
-        if(avoidMode==="strict"){
-          pairs = maxPairsSameSex(womenSel, tracking.pairsUsed);
-          if(pairs.length < gc*2) strictShortageCount++;
-        } else if(avoidMode==="soft"){
-          pairs = bestSameSexPairsSoft(womenSel, tracking.pairsUsed, PAIR_TRIES);
-        } else {
-          const A=shuffle(womenSel);
-          for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
-        }
+        if(gameType==="singles"){
+          const needPlayers = gc*2;
+          let pool, pairs=[];
+          if(avoidMode==="strict"){
+            const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), women.length);
+            pool = pickByLeastGames(women, womenGames, poolSize, true);
+            pairs = maxPairsSameSex(pool, tracking.singlesMatchupsUsed, (a,b)=>singlesKey(playerId("F",a), playerId("F",b)));
+            if(pairs.length < gc) strictShortageRounds++;
+          } else {
+            pool = pickByLeastGames(women, womenGames, needPlayers, balanceOn);
+            if(avoidMode==="soft"){
+              pairs = softBestByTries(
+                ()=>{
+                  const A=shuffle(pool);
+                  const res=[];
+                  for(let i=0;i+1<A.length;i+=2) res.push([A[i],A[i+1]]);
+                  return res;
+                },
+                (cand)=>{
+                  let rep=0;
+                  for(const [a,b] of cand){
+                    const k=singlesKey(playerId("F",a), playerId("F",b));
+                    if(tracking.singlesMatchupsUsed.has(k)) rep++;
+                  }
+                  return rep*100;
+                },
+                PAIR_TRIES
+              ) || [];
+            } else {
+              const A=shuffle(pool);
+              for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
+            }
+          }
 
-        let matches;
-        const makeOppEdges = (a,b)=>{
-          const A=[playerId("F",a[0]), playerId("F",a[1])];
-          const B=[playerId("F",b[0]), playerId("F",b[1])];
-          const edges=[];
-          for(const x of A) for(const y of B) edges.push(oppKey(x,y));
-          return edges;
-        };
-
-        if(avoidMode==="soft"){
-          matches = bestMatchesFromPairsSoft(pairs, gc, tracking, MATCH_TRIES, makeOppEdges);
-        } else {
           const ps=shuffle(pairs);
-          matches=[];
-          for(let c=0;c<gc;c++){
-            matches.push([ps[c*2]??null, ps[c*2+1]??null]);
-          }
-        }
-        girlsMatches = matches;
+          const matches=[];
+          for(let c=0;c<gc;c++) matches.push(ps[c] ?? null);
 
-        for(const [p1,p2] of girlsMatches){
-          if(p1){
-            tracking.pairsUsed.add(p2(p1[0],p1[1]));
-            addGames(womenGames,[p1[0],p1[1]]);
+          for(const ab of matches){
+            if(!ab) continue;
+            const [a,b]=ab;
+            addGames(womenGames,[a,b]);
+            tracking.singlesMatchupsUsed.add(singlesKey(playerId("F",a), playerId("F",b)));
           }
-          if(p2){
-            tracking.pairsUsed.add(p2(p2[0],p2[1]));
-            addGames(womenGames,[p2[0],p2[1]]);
+
+          const t = renderTableRows(gc, (c)=>{
+            const ab = matches[c];
+            if(!ab) return `<div class="match">${boxRest()}</div>`;
+            return `<div class="match">${boxFemale(ab[0])}<span class="vs">vs</span>${boxFemale(ab[1])}</div>`;
+          });
+          roundDiv.appendChild(t);
+
+        } else {
+          // 女子ダブルス
+          const needPlayers = gc*4;
+          const womenSel = pickByLeastGames(women, womenGames, needPlayers, balanceOn);
+
+          let pairs=[];
+          if(avoidMode==="strict"){
+            const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), women.length);
+            const pool = pickByLeastGames(women, womenGames, poolSize, true);
+            pairs = maxPairsSameSex(pool, tracking.doublesPairsUsed, (a,b)=>p2Pair(a,b));
+            if(pairs.length < gc*2) strictShortageRounds++;
+          } else if(avoidMode==="soft"){
+            pairs = softBestByTries(
+              ()=>{
+                const A=shuffle(womenSel);
+                const res=[];
+                for(let i=0;i+1<A.length;i+=2) res.push([A[i],A[i+1]]);
+                return res;
+              },
+              (cand)=>{
+                let rep=0;
+                for(const [a,b] of cand) if(tracking.doublesPairsUsed.has(p2Pair(a,b))) rep++;
+                return rep*100;
+              },
+              PAIR_TRIES
+            ) || [];
+          } else {
+            const A=shuffle(womenSel);
+            for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
           }
-          if(p1 && p2){
-            tracking.matchupsUsed.add(matchupKey(p1,p2));
-            for(const e of makeOppEdges(p1,p2)) tracking.opponentsUsed.add(e);
+
+          const ps=shuffle(pairs.slice(0, Math.min(pairs.length, gc*2)));
+          const matches=[];
+          for(let c=0;c<gc;c++) matches.push([ps[c*2]??null, ps[c*2+1]??null]);
+
+          for(const [p1,p2] of matches){
+            if(p1){
+              tracking.doublesPairsUsed.add(p2Pair(p1[0],p1[1]));
+              addGames(womenGames,[p1[0],p1[1]]);
+            }
+            if(p2){
+              tracking.doublesPairsUsed.add(p2Pair(p2[0],p2[1]));
+              addGames(womenGames,[p2[0],p2[1]]);
+            }
           }
+
+          const t = renderTableRows(gc, (c)=>{
+            const [p1,p2]=matches[c];
+            const L = p1 ? `<span class="pair">${boxFemale(p1[0])}${boxFemale(p1[1])}</span>` : boxRest();
+            const R = p2 ? `<span class="pair">${boxFemale(p2[0])}${boxFemale(p2[1])}</span>` : boxRest();
+            return `<div class="match">${L}<span class="vs">vs</span>${R}</div>`;
+          });
+          roundDiv.appendChild(t);
         }
       }
 
-      out.appendChild(renderRoundSeparate(r, bc, gc, boysMatches, girlsMatches));
+      out.appendChild(roundDiv);
     }
   }
 
   summary.innerHTML = renderSummary(menGames, womenGames);
 
-  if(avoidMode==="strict" && strictShortageCount>0){
+  if(avoidMode==="strict" && strictShortageRounds>0){
     status.textContent =
-      `⚠ 同ペア完全禁止により、全試合を埋められないラウンドがありました。\n` +
-      `禁則（同ペア再発）は一切破っていません。その代わり一部「休」が出ます。`;
+      `⚠ 完全禁止の条件により、全試合を埋められないラウンドがありました。\n` +
+      `禁則は一切破っていません。その代わり一部「休」が出ます。`;
   }
 }
 
 // UI切替
-document.getElementById("mode").addEventListener("change",()=>{
-  const m=document.getElementById("mode").value==="mixed";
-  document.getElementById("mixedCourtsBox").style.display=m?"block":"none";
-  document.getElementById("boysCourtsBox").style.display=m?"none":"block";
-  document.getElementById("girlsCourtsBox").style.display=m?"none":"block";
-});
+function syncUI(){
+  const mode=document.getElementById("mode").value;
+  const isMixed = mode==="mixed";
+  document.getElementById("mixedCourtsBox").style.display=isMixed?"block":"none";
+  document.getElementById("boysCourtsBox").style.display=isMixed?"none":"block";
+  document.getElementById("girlsCourtsBox").style.display=isMixed?"none":"block";
+}
+document.getElementById("mode").addEventListener("change",syncUI);
+syncUI();
 
 // Service Worker 登録（PWA）
 if ("serviceWorker" in navigator) {
