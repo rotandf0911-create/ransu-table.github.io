@@ -5,80 +5,51 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>ダブルス乱数表（混合・男女別）</title>
 
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111827">
+<link rel="apple-touch-icon" href="icon-192.svg">
+
 <style>
-body{
-  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
-  margin:0;background:#f6f7f9
-}
-header{
-  background:#111827;color:#fff;padding:14px
-}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;background:#f6f7f9}
+header{background:#111827;color:#fff;padding:14px}
 header h1{margin:0;font-size:18px}
 main{max-width:980px;margin:auto;padding:16px}
 
-.card{
-  background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;
-  box-shadow:0 2px 8px rgba(0,0,0,.08)
-}
+.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
 .field{flex:1 1 160px}
 label{font-size:12px;color:#374151;display:block;margin-bottom:6px}
-input,select,button{
-  width:100%;padding:10px;border-radius:10px;
-  border:1px solid #d1d5db;font:inherit;background:#fff
-}
+input,select,button{width:100%;padding:10px;border-radius:10px;border:1px solid #d1d5db;font:inherit;background:#fff}
 button.primary{background:#111827;color:#fff;border:none;cursor:pointer}
 button.ghost{cursor:pointer}
 
-/* ===== 出力 ===== */
-.round{
-  border:1px solid #e5e7eb;border-radius:12px;
-  padding:12px;margin:12px 0
-}
+/* 出力 */
+.round{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0}
 .round-title{font-weight:800;margin-bottom:10px}
-
-/* 表 */
 table{width:100%;border-collapse:collapse}
-th,td{
-  border-top:1px solid #e5e7eb;
-  padding:12px;vertical-align:middle
-}
-th{
-  width:120px;text-align:left;
-  color:#374151;font-weight:800
-}
+th,td{border-top:1px solid #e5e7eb;padding:12px;vertical-align:middle}
+th{width:120px;text-align:left;color:#374151;font-weight:800}
 
-/* ===== ペア表示 ===== */
-.match{
-  display:flex;align-items:center;gap:12px;flex-wrap:wrap
-}
-.pair{
-  display:flex;align-items:center;gap:8px
-}
+/* ペア表示 */
+.match{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pair{display:flex;align-items:center;gap:8px}
 
-/* 男（黒枠＋青文字） */
+/* 黒枠＋色文字 */
 .box-male{
   display:inline-flex;align-items:center;justify-content:center;
-  min-width:48px;padding:10px 14px;
-  border:3px solid #111;border-radius:12px;
+  min-width:48px;padding:10px 14px;border:3px solid #111;border-radius:12px;
   color:#2563eb;font-size:26px;font-weight:900;line-height:1
 }
-
-/* 女（黒枠＋赤文字） */
 .box-female{
   display:inline-flex;align-items:center;justify-content:center;
-  min-width:48px;padding:10px 14px;
-  border:3px solid #111;border-radius:12px;
+  min-width:48px;padding:10px 14px;border:3px solid #111;border-radius:12px;
   color:#dc2626;font-size:26px;font-weight:900;line-height:1
 }
-
-/* 休 */
 .box-rest{
   display:inline-flex;align-items:center;justify-content:center;
-  min-width:48px;padding:10px 14px;
-  border:3px dashed #9ca3af;border-radius:12px;
-  color:#6b7280;font-size:22px;font-weight:900;
-  font-style:italic;background:#f9fafb
+  min-width:48px;padding:10px 14px;border:3px dashed #9ca3af;border-radius:12px;
+  color:#6b7280;font-size:22px;font-weight:900;font-style:italic;background:#f9fafb
 }
 
 .vs{font-weight:900;font-size:18px;margin:0 6px}
@@ -90,7 +61,6 @@ th{
   .card{box-shadow:none;border-radius:0}
   .round{break-inside:avoid}
   .pagebreak{page-break-after:always}
-  .box-male,.box-female{font-size:24px}
 }
 </style>
 </head>
@@ -110,32 +80,26 @@ th{
         <option value="separate">男女別</option>
       </select>
     </div>
-
     <div class="field">
       <label>ラウンド数</label>
       <input type="number" id="rounds" value="10">
     </div>
-
     <div class="field" id="mixedCourtsBox">
       <label>コート数（混合）</label>
       <input type="number" id="mixedCourts" value="3">
     </div>
-
     <div class="field" id="boysCourtsBox" style="display:none">
       <label>男子コート数</label>
       <input type="number" id="boysCourts" value="2">
     </div>
-
     <div class="field" id="girlsCourtsBox" style="display:none">
       <label>女子コート数</label>
       <input type="number" id="girlsCourts" value="1">
     </div>
-
     <div class="field">
       <label>男（人数）</label>
       <input type="number" id="menCount" value="10">
     </div>
-
     <div class="field">
       <label>女（人数）</label>
       <input type="number" id="womenCount" value="10">
@@ -148,23 +112,13 @@ th{
   </div>
 </div>
 
-<div class="card">
-  <div id="output"></div>
-</div>
+<div class="card"><div id="output"></div></div>
 </main>
 
 <script>
 const makeList=n=>Array.from({length:n},(_,i)=>i+1);
-const shuffle=a=>{
-  const b=a.slice();
-  for(let i=b.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [b[i],b[j]]=[b[j],b[i]];
-  }
-  return b;
-};
+const shuffle=a=>{const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
 const courtName=i=>String.fromCharCode(65+i);
-
 const boxMale=n=>`<span class="box-male">${n}</span>`;
 const boxFemale=n=>`<span class="box-female">${n}</span>`;
 const boxRest=()=>`<span class="box-rest">休</span>`;
@@ -173,18 +127,12 @@ function mixedRound(men,women,courts){
   const need=courts*2;
   const M=shuffle(men), W=shuffle(women);
   const pairs=[];
-  for(let i=0;i<Math.min(need,M.length,W.length);i++){
-    pairs.push([M[i],W[i]]);
-  }
+  for(let i=0;i<Math.min(need,M.length,W.length);i++) pairs.push([M[i],W[i]]);
   return shuffle(pairs);
 }
-
 function sameSexRound(list,courts){
   const A=shuffle(list).slice(0,courts*4);
-  const out=[];
-  for(let c=0;c<courts;c++){
-    out.push(A.slice(c*4,c*4+4));
-  }
+  const out=[]; for(let c=0;c<courts;c++) out.push(A.slice(c*4,c*4+4));
   return out;
 }
 
@@ -193,8 +141,7 @@ function generate(){
   const rounds=Number(document.getElementById("rounds").value);
   const men=makeList(Number(document.getElementById("menCount").value));
   const women=makeList(Number(document.getElementById("womenCount").value));
-  const out=document.getElementById("output");
-  out.innerHTML="";
+  const out=document.getElementById("output"); out.innerHTML="";
 
   for(let r=0;r<rounds;r++){
     const round=document.createElement("div");
@@ -205,27 +152,22 @@ function generate(){
     if(mode==="mixed"){
       const courts=Number(document.getElementById("mixedCourts").value);
       const ps=mixedRound(men,women,courts);
-      const t=document.createElement("table"), tb=document.createElement("tbody");
-
+      const t=document.createElement("table"),tb=document.createElement("tbody");
       for(let c=0;c<courts;c++){
         const tr=document.createElement("tr");
         tr.innerHTML=`
           <th>${courtName(c)}コート</th>
-          <td>
-            <div class="match">
-              ${ps[c*2]?`<span class="pair">${boxMale(ps[c*2][0])}${boxFemale(ps[c*2][1])}</span>`:boxRest()}
-              <span class="vs">vs</span>
-              ${ps[c*2+1]?`<span class="pair">${boxMale(ps[c*2+1][0])}${boxFemale(ps[c*2+1][1])}</span>`:boxRest()}
-            </div>
-          </td>`;
+          <td><div class="match">
+            ${ps[c*2]?`<span class="pair">${boxMale(ps[c*2][0])}${boxFemale(ps[c*2][1])}</span>`:boxRest()}
+            <span class="vs">vs</span>
+            ${ps[c*2+1]?`<span class="pair">${boxMale(ps[c*2+1][0])}${boxFemale(ps[c*2+1][1])}</span>`:boxRest()}
+          </div></td>`;
         tb.appendChild(tr);
       }
-      t.appendChild(tb);
-      round.appendChild(t);
+      t.appendChild(tb); round.appendChild(t);
     } else {
       const bc=Number(document.getElementById("boysCourts").value);
       const gc=Number(document.getElementById("girlsCourts").value);
-
       if(bc>0){
         round.innerHTML+=`<div class="subhead">男子</div>`;
         const boys=sameSexRound(men,bc);
@@ -233,20 +175,15 @@ function generate(){
         for(let c=0;c<bc;c++){
           const g=boys[c]||[];
           tb.innerHTML+=`
-            <tr>
-              <th>${courtName(c)}コート</th>
-              <td>
-                <div class="match">
-                  ${g.length===4?`<span class="pair">${boxMale(g[0])}${boxMale(g[1])}</span>`:boxRest()}
-                  <span class="vs">vs</span>
-                  ${g.length===4?`<span class="pair">${boxMale(g[2])}${boxMale(g[3])}</span>`:boxRest()}
-                </div>
-              </td>
-            </tr>`;
+            <tr><th>${courtName(c)}コート</th>
+            <td><div class="match">
+              ${g.length===4?`<span class="pair">${boxMale(g[0])}${boxMale(g[1])}</span>`:boxRest()}
+              <span class="vs">vs</span>
+              ${g.length===4?`<span class="pair">${boxMale(g[2])}${boxMale(g[3])}</span>`:boxRest()}
+            </div></td></tr>`;
         }
         t.appendChild(tb); round.appendChild(t);
       }
-
       if(gc>0){
         round.innerHTML+=`<div class="subhead">女子</div>`;
         const girls=sameSexRound(women,gc);
@@ -254,21 +191,16 @@ function generate(){
         for(let c=0;c<gc;c++){
           const g=girls[c]||[];
           tb.innerHTML+=`
-            <tr>
-              <th>${courtName(c)}コート</th>
-              <td>
-                <div class="match">
-                  ${g.length===4?`<span class="pair">${boxFemale(g[0])}${boxFemale(g[1])}</span>`:boxRest()}
-                  <span class="vs">vs</span>
-                  ${g.length===4?`<span class="pair">${boxFemale(g[2])}${boxFemale(g[3])}</span>`:boxRest()}
-                </div>
-              </td>
-            </tr>`;
+            <tr><th>${courtName(c)}コート</th>
+            <td><div class="match">
+              ${g.length===4?`<span class="pair">${boxFemale(g[0])}${boxFemale(g[1])}</span>`:boxRest()}
+              <span class="vs">vs</span>
+              ${g.length===4?`<span class="pair">${boxFemale(g[2])}${boxFemale(g[3])}</span>`:boxRest()}
+            </div></td></tr>`;
         }
         t.appendChild(tb); round.appendChild(t);
       }
     }
-
     out.appendChild(round);
   }
 }
@@ -280,6 +212,13 @@ document.getElementById("mode").addEventListener("change",()=>{
   document.getElementById("boysCourtsBox").style.display=m?"none":"block";
   document.getElementById("girlsCourtsBox").style.display=m?"none":"block";
 });
+
+// Service Worker 登録
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js");
+  });
+}
 </script>
 </body>
 </html>
