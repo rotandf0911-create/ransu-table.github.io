@@ -3,281 +3,492 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>乱数表ジェネレーター（混合対応）</title>
+  <title>乱数表ジェネレーター（混合・同ペア禁止・印刷）</title>
+
   <style>
     :root { --w: 980px; }
     body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background:#f6f7f9; }
     header { background:#111827; color:#fff; padding:16px; }
     header h1 { margin:0; font-size:18px; }
     main { max-width: var(--w); margin: 0 auto; padding: 16px; }
-    .card { background:#fff; border-radius:12px; padding: 14px; margin: 12px 0; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-    .row { display:flex; gap:12px; flex-wrap:wrap; }
-    label { font-size:12px; color:#374151; display:block; margin-bottom:6px; }
-    input, textarea, select, button {
-      font: inherit; border:1px solid #d1d5db; border-radius:10px; padding:10px; background:#fff;
-    }
-    textarea { width:100%; min-height:120px; }
+    .card { background:#fff; border-radius:12px; padding:14px; margin:12px 0; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
     .field { flex:1 1 220px; }
+    label { font-size:12px; color:#374151; display:block; margin-bottom:6px; }
+    input, textarea, select, button { font: inherit; border:1px solid #d1d5db; border-radius:10px; padding:10px; background:#fff; }
+    textarea { width:100%; min-height:92px; }
     .btns { display:flex; gap:10px; flex-wrap:wrap; }
-    button { cursor:pointer; }
-    button.primary { background:#111827; color:#fff; border-color:#111827; }
-    button.ghost { background:#fff; }
+    button.primary { background:#111827; color:#fff; border-color:#111827; cursor:pointer; }
+    button.ghost { cursor:pointer; }
     .hint { font-size:12px; color:#6b7280; margin-top:6px; }
-    .out h2 { margin: 0 0 10px; font-size: 16px; }
-    .round { border:1px solid #e5e7eb; border-radius:12px; padding:12px; margin: 10px 0; }
-    .round-title { font-weight:700; margin-bottom: 8px; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { border-top:1px solid #e5e7eb; padding:10px; vertical-align: top; }
-    th { text-align:left; color:#374151; width:120px; }
+    .warn { color:#b91c1c; font-size:12px; margin-top:8px; }
+
+    .round { border:1px solid #e5e7eb; border-radius:12px; padding:12px; margin:10px 0; }
+    .round-title { font-weight:700; margin-bottom:8px; }
 
     /* 印刷（A4縦） */
     @media print {
       body { background:#fff; }
       header, .controls { display:none !important; }
-      main { max-width: none; padding: 0; }
-      .card { box-shadow:none; border-radius:0; padding: 0; margin: 0; }
-      .round { page-break-inside: avoid; }
+      main { max-width:none; padding:0; }
+      .card { box-shadow:none; border-radius:0; padding:0; margin:0; }
+      .round { break-inside: avoid; }
+      .pagebreak { page-break-after: always; }
     }
   </style>
 </head>
-<body>
-  <header>
-    <h1>乱数表ジェネレーター（混合ダブルス対応）</h1>
-  </header>
 
-  <main>
-    <div class="card controls">
+<body>
+<header>
+  <h1>乱数表ジェネレーター（混合・同ペア完全禁止・印刷）</h1>
+</header>
+
+<main>
+  <div class="card controls">
+    <div class="row">
+      <div class="field">
+        <label>モード</label>
+        <select id="mode">
+          <option value="normal">通常ダブルス</option>
+          <option value="mixed">混合ダブルス（男＋女）</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>コート数</label>
+        <input type="number" id="courts" value="2" min="1" max="10">
+      </div>
+
+      <div class="field">
+        <label>ラウンド数</label>
+        <input type="number" id="rounds" value="10" min="1" max="60">
+        <div class="hint">印刷時：10ラウンドごとに改ページ</div>
+      </div>
+
+      <div class="field">
+        <label>同ペア</label>
+        <select id="pairRule">
+          <option value="soft" selected>なるべく避ける（失敗しても作る）</option>
+          <option value="strict">完全禁止（可能な限り作る／無理なら警告）</option>
+        </select>
+        <div class="hint">「完全禁止」は条件上、成立しない場合があります（人数・ラウンド数による）</div>
+      </div>
+    </div>
+
+    <!-- 通常 -->
+    <div id="normalBox" style="margin-top:12px;">
       <div class="row">
         <div class="field">
-          <label>モード</label>
-          <select id="mode">
-            <option value="normal">通常（番号だけで4人を割り当て）</option>
-            <option value="mixed">混合（男×女でペアを作る）</option>
-          </select>
-          <div class="hint">混合は「男＋女」でペアを組みます（人数不足分は休憩扱い）。</div>
+          <label>参加者（通常）</label>
+          <textarea id="players" placeholder="例）1,2,3,4,5,6,7,8（改行/カンマOK）"></textarea>
+          <div class="hint">番号でも名前でもOK</div>
         </div>
-
-        <div class="field">
-          <label>コート数</label>
-          <input id="courts" type="number" min="1" max="10" value="2" />
-          <div class="hint">A, B, C...で表示します</div>
-        </div>
-
-        <div class="field">
-          <label>ラウンド数</label>
-          <input id="rounds" type="number" min="1" max="50" value="10" />
-          <div class="hint">例：10ラウンド</div>
-        </div>
-
-        <div class="field">
-          <label>表示形式</label>
-          <select id="format">
-            <option value="line">1行（M1.F1 vs M2.F2）</option>
-            <option value="table">表（コートごとに4人表示）</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:12px;">
-        <div class="field" id="normalBox">
-          <label>参加者（通常モード）</label>
-          <textarea id="players" placeholder="例）1,2,3,4,5,6,7,8
-※改行でもカンマでもOK"></textarea>
-          <div class="hint">番号でも名前でもOK（そのまま表示されます）。</div>
-        </div>
-
-        <div class="field" id="mixedBox" style="display:none;">
-          <label>男子（混合モード）</label>
-          <textarea id="men" placeholder="例）M1,M2,M3,M4,M5"></textarea>
-          <label style="margin-top:10px;">女子（混合モード）</label>
-          <textarea id="women" placeholder="例）F1,F2,F3,F4,F5,F6"></textarea>
-          <div class="hint">男と女をシャッフル→同じ順番でペア化します。</div>
-        </div>
-      </div>
-
-      <div class="btns" style="margin-top:12px;">
-        <button class="primary" id="gen">生成</button>
-        <button class="ghost" id="print">印刷</button>
-        <button class="ghost" id="clear">クリア</button>
       </div>
     </div>
 
-    <div class="card out">
-      <h2>出力</h2>
-      <div id="output"></div>
+    <!-- 混合（人数入力を簡単に） -->
+    <div id="mixedBox" style="display:none; margin-top:12px;">
+      <div class="row">
+        <div class="field">
+          <label>男子人数</label>
+          <input type="number" id="menCount" value="10" min="0" max="60">
+        </div>
+        <div class="field">
+          <label>女子人数</label>
+          <input type="number" id="womenCount" value="10" min="0" max="60">
+        </div>
+        <div class="field">
+          <button class="ghost" id="autoFill">人数から自動生成（M1.. / F1..）</button>
+          <div class="hint">授業なら基本これでOK（名前入力したい場合は下の欄を編集）</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <div class="field">
+          <label>男子（自動生成 or 手入力）</label>
+          <textarea id="men" placeholder="例）M1,M2,M3..."></textarea>
+        </div>
+        <div class="field">
+          <label>女子（自動生成 or 手入力）</label>
+          <textarea id="women" placeholder="例）F1,F2,F3..."></textarea>
+        </div>
+      </div>
     </div>
-  </main>
+
+    <div class="btns" style="margin-top:12px;">
+      <button class="primary" id="gen">生成</button>
+      <button class="ghost" id="print">印刷</button>
+      <button class="ghost" id="clear">クリア</button>
+    </div>
+
+    <div id="status" class="warn" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <div id="output"></div>
+  </div>
+</main>
 
 <script>
   const $ = (id) => document.getElementById(id);
 
-  function parseList(text) {
-    return text
-      .split(/[\n,]/)
-      .map(s => s.trim())
-      .filter(Boolean);
+  function parseList(text){
+    return text.split(/[\n,]/).map(v=>v.trim()).filter(Boolean);
   }
-
-  function shuffle(arr) {
+  function shuffle(arr){
     const a = arr.slice();
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
+    for(let i=a.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
     }
     return a;
   }
+  function courtName(i){ return String.fromCharCode(65+i); }
 
-  function courtName(i) {
-    return String.fromCharCode("A".charCodeAt(0) + i); // 0=>A
-  }
-
-  function chunk(arr, size) {
+  // ===== 自動生成（人数 → M1.. / F1..）=====
+  function makeLabels(prefix, n){
     const out = [];
-    for (let i=0; i<arr.length; i+=size) out.push(arr.slice(i, i+size));
+    for(let i=1;i<=n;i++) out.push(prefix + i);
     return out;
   }
+  function autofill(){
+    const mc = Math.max(0, Number($("menCount").value||0));
+    const wc = Math.max(0, Number($("womenCount").value||0));
+    $("men").value = makeLabels("M", mc).join(",");
+    $("women").value = makeLabels("F", wc).join(",");
+  }
 
-  function renderLine(roundIdx, courts, matches) {
+  // ===== ペアキー =====
+  // 通常：2人の組み合わせ（順不同）
+  function keyPair2(a,b){ return [a,b].sort().join("||"); }
+  // 混合：男-女（順序固定）
+  function keyMixed(m,w){ return `${m}||${w}`; }
+
+  // ===== 表示 =====
+  function renderRound(roundIdx, matches){
     const wrap = document.createElement("div");
     wrap.className = "round";
+    if((roundIdx+1) % 10 === 0) wrap.classList.add("pagebreak");
+
     const title = document.createElement("div");
     title.className = "round-title";
     title.textContent = `第${roundIdx+1}ラウンド`;
     wrap.appendChild(title);
 
-    // 1コート1行
     matches.forEach((m, ci) => {
       const line = document.createElement("div");
       line.style.padding = "6px 0";
       line.innerHTML = `<b>${courtName(ci)}コート</b>： ${m[0]} vs ${m[1]}`;
       wrap.appendChild(line);
     });
-
     return wrap;
   }
 
-  function renderTable(roundIdx, matches) {
-    const wrap = document.createElement("div");
-    wrap.className = "round";
-    const title = document.createElement("div");
-    title.className = "round-title";
-    title.textContent = `第${roundIdx+1}ラウンド`;
-    wrap.appendChild(title);
+  // ===== 混合：完全禁止用のマッチング（バックトラック）=====
+  // 目的：このラウンドで必要なペア数 N を、過去に出た男女ペア(usedSet)を使わず作る
+  function findMixedPairsStrict(men, women, needPairs, usedSet){
+    const M = shuffle(men).slice();      // men全体はシャッフル
+    const W = shuffle(women).slice();    // women全体もシャッフル
+    const n = Math.min(needPairs, M.length, W.length);
 
-    const t = document.createElement("table");
-    const tb = document.createElement("tbody");
+    // このラウンドで使う男性候補を n人に絞る（足りない場合はその分だけ）
+    const mPick = M.slice(0, n);
 
-    matches.forEach((m, ci) => {
-      const tr = document.createElement("tr");
-      const th = document.createElement("th");
-      th.textContent = `${courtName(ci)}コート`;
-      const td = document.createElement("td");
-      // m = [ "ペア1", "ペア2" ] だが表では中身も出す
-      td.textContent = `${m[0]}  /  ${m[1]}`;
-      tr.appendChild(th);
-      tr.appendChild(td);
-      tb.appendChild(tr);
-    });
+    // DFSで「mPick[i] に割り当てる女性」を決める
+    const usedW = new Set();
+    const result = [];
 
-    t.appendChild(tb);
-    wrap.appendChild(t);
-    return wrap;
-  }
+    function dfs(i){
+      if(i === mPick.length) return true;
+      const m = mPick[i];
 
-  function genNormal(players, courts, rounds) {
-    const perRound = courts * 4;
-    const out = [];
-    for (let r=0; r<rounds; r++) {
-      const p = shuffle(players);
-      const active = p.slice(0, perRound);
-      const groups = chunk(active, 4); // 4人=1試合
-      const matches = groups.map(g => {
-        const a = g.slice(0,2).join(".");
-        const b = g.slice(2,4).join(".");
-        return [`${a}`, `${b}`]; // "1.2" vs "3.4"
-      });
-      out.push(matches);
+      // 候補女性（未使用 & 過去未出）
+      const candidates = shuffle(W).filter(w => !usedW.has(w) && !usedSet.has(keyMixed(m,w)));
+
+      for(const w of candidates){
+        usedW.add(w);
+        result.push([m,w]);
+        if(dfs(i+1)) return true;
+        result.pop();
+        usedW.delete(w);
+      }
+      return false;
     }
-    return out;
+
+    const ok = dfs(0);
+    return ok ? result : null;
   }
 
-  function genMixed(men, women, courts, rounds) {
-    const perRound = courts * 4;
-    // 混合は「ペア数 = コート数*2」必要。→ 男女それぞれ最低その人数が必要。
-    const pairsNeeded = courts * 2;
+  // ===== 混合：生成 =====
+  function genMixed(rounds, courts, rule){
+    const men = parseList($("men").value);
+    const women = parseList($("women").value);
 
-    const out = [];
-    for (let r=0; r<rounds; r++) {
-      const m = shuffle(men);
-      const w = shuffle(women);
+    const needPairs = courts * 2;
 
-      const usablePairs = Math.min(pairsNeeded, m.length, w.length);
-      const pairs = [];
-      for (let i=0; i<usablePairs; i++) {
-        pairs.push(`${m[i]}.${w[i]}`); // 例 "M1.F1"
+    // 過去の男女ペア履歴（完全禁止で使用）
+    const usedMixed = new Set();
+    // ソフト回避用：回数カウント
+    const mixedCount = new Map();
+
+    const output = [];
+    let strictFailed = 0;
+
+    for(let r=0;r<rounds;r++){
+      let pairs = [];
+
+      if(rule === "strict"){
+        // 完全禁止：成立するまで試す（難しければ失敗）
+        const attemptMax = 60;
+        let got = null;
+        for(let t=0;t<attemptMax;t++){
+          got = findMixedPairsStrict(men, women, needPairs, usedMixed);
+          if(got) break;
+        }
+        if(!got){
+          strictFailed++;
+          // 失敗時は「作れる分だけ」ソフトで作る（完全停止より授業で使いやすい）
+          pairs = genMixedSoftOnce(men, women, needPairs, mixedCount);
+        }else{
+          pairs = got;
+          // 履歴更新（完全禁止）
+          for(const [m,w] of pairs) usedMixed.add(keyMixed(m,w));
+        }
+      }else{
+        // なるべく避ける（ソフト）
+        pairs = genMixedSoftOnce(men, women, needPairs, mixedCount);
       }
 
-      // ペアをシャッフルして対戦にする
-      const ps = shuffle(pairs);
+      // ペアをシャッフルして試合へ
+      const pairStrs = shuffle(pairs.map(([m,w]) => `${m}.${w}`));
       const matches = [];
-      for (let c=0; c<courts; c++) {
-        const p1 = ps[c*2] ?? "休";
-        const p2 = ps[c*2+1] ?? "休";
-        matches.push([p1, p2]);
+      for(let c=0;c<courts;c++){
+        matches.push([pairStrs[c*2] ?? "休", pairStrs[c*2+1] ?? "休"]);
       }
-      out.push(matches);
+      output.push(matches);
     }
-    return out;
+
+    return { output, strictFailed };
   }
 
-  function rebuild() {
-    const mode = $("mode").value;
-    const courts = Math.max(1, Number($("courts").value || 1));
-    const rounds = Math.max(1, Number($("rounds").value || 1));
-    const format = $("format").value;
+  // 混合ソフト：男ごとに「過去回数が少ない」女を選ぶ（同点はランダム）
+  function genMixedSoftOnce(men, women, needPairs, mixedCount){
+    const M = shuffle(men).slice();
+    const W = shuffle(women).slice();
 
-    let data;
-    if (mode === "normal") {
-      const players = parseList($("players").value);
-      if (players.length < courts*4) {
-        $("output").innerHTML = `<p style="color:#b91c1c;">参加者が足りません（最低 ${courts*4} 人）</p>`;
-        return;
+    const n = Math.min(needPairs, M.length, W.length);
+    const mPick = M.slice(0, n);
+
+    const usedW = new Set();
+    const pairs = [];
+
+    for(const m of mPick){
+      const candidates = W.filter(w => !usedW.has(w));
+      if(candidates.length === 0) break;
+
+      // 最小回数の女性候補を探す
+      let minC = Infinity;
+      for(const w of candidates){
+        const c = mixedCount.get(keyMixed(m,w)) || 0;
+        if(c < minC) minC = c;
       }
-      data = genNormal(players, courts, rounds);
-    } else {
-      const men = parseList($("men").value);
-      const women = parseList($("women").value);
-      if (men.length === 0 || women.length === 0) {
-        $("output").innerHTML = `<p style="color:#b91c1c;">男子・女子を入力してください</p>`;
-        return;
-      }
-      data = genMixed(men, women, courts, rounds);
+      const best = candidates.filter(w => (mixedCount.get(keyMixed(m,w)) || 0) === minC);
+      const w = best[Math.floor(Math.random()*best.length)];
+      usedW.add(w);
+      pairs.push([m,w]);
+
+      // 回数更新
+      const k = keyMixed(m,w);
+      mixedCount.set(k, (mixedCount.get(k) || 0) + 1);
     }
+
+    return pairs;
+  }
+
+  // ===== 通常：完全禁止（2人ペアの再登場禁止）を目指す =====
+  function genNormal(rounds, courts, rule){
+    const players = parseList($("players").value);
+    const need = courts * 4;
+
+    const usedPairs = new Set();   // 完全禁止
+    const pairCount = new Map();   // ソフト
+
+    const output = [];
+    let strictFailed = 0;
+
+    for(let r=0;r<rounds;r++){
+      const active = shuffle(players).slice(0, need);
+      let pairs = null;
+
+      if(rule === "strict"){
+        const attemptMax = 80;
+        for(let t=0;t<attemptMax;t++){
+          pairs = findPairsStrict(active, usedPairs);
+          if(pairs) break;
+        }
+        if(!pairs){
+          strictFailed++;
+          pairs = makePairsSoft(active, pairCount);
+        }else{
+          for(const [a,b] of pairs) usedPairs.add(keyPair2(a,b));
+        }
+      }else{
+        pairs = makePairsSoft(active, pairCount);
+      }
+
+      // 2ペアで1試合にする
+      const pStr = shuffle(pairs.map(([a,b]) => `${a}.${b}`));
+      const matches = [];
+      for(let c=0;c<courts;c++){
+        matches.push([pStr[c*2] ?? "休", pStr[c*2+1] ?? "休"]);
+      }
+      output.push(matches);
+    }
+
+    return { output, strictFailed, minPlayers: need };
+  }
+
+  // 通常 strict：activeを2人組に分割（過去未出ペアのみ）
+  function findPairsStrict(active, usedPairs){
+    const A = shuffle(active).slice();
+    const used = new Set();
+    const res = [];
+
+    function dfs(){
+      if(used.size === A.length) return true;
+
+      // 未使用の先頭
+      let i = 0;
+      while(i < A.length && used.has(A[i])) i++;
+      if(i >= A.length) return true;
+
+      const a = A[i];
+      used.add(a);
+
+      // b候補
+      const candidates = shuffle(A).filter(b => !used.has(b) && !usedPairs.has(keyPair2(a,b)));
+
+      for(const b of candidates){
+        used.add(b);
+        res.push([a,b]);
+        if(dfs()) return true;
+        res.pop();
+        used.delete(b);
+      }
+
+      used.delete(a);
+      return false;
+    }
+
+    return dfs() ? res : null;
+  }
+
+  // 通常 soft：ペア回数が少ない組を優先（同点ランダム）
+  function makePairsSoft(active, pairCount){
+    const A = shuffle(active).slice();
+    const used = new Set();
+    const res = [];
+
+    while(true){
+      const remain = A.filter(x => !used.has(x));
+      if(remain.length < 2) break;
+      const a = remain[0];
+      used.add(a);
+
+      const candidates = remain.slice(1);
+
+      // 最小回数のb
+      let minC = Infinity;
+      for(const b of candidates){
+        const c = pairCount.get(keyPair2(a,b)) || 0;
+        if(c < minC) minC = c;
+      }
+      const best = candidates.filter(b => (pairCount.get(keyPair2(a,b)) || 0) === minC);
+      const b = best[Math.floor(Math.random()*best.length)];
+      used.add(b);
+      res.push([a,b]);
+
+      const k = keyPair2(a,b);
+      pairCount.set(k, (pairCount.get(k) || 0) + 1);
+    }
+
+    return res;
+  }
+
+  // ===== 生成ボタン =====
+  function generate(){
+    $("status").style.display = "none";
+    $("status").textContent = "";
+
+    const mode = $("mode").value;
+    const courts = Math.max(1, Number($("courts").value||1));
+    const rounds = Math.max(1, Number($("rounds").value||1));
+    const rule = $("pairRule").value;
 
     const out = $("output");
     out.innerHTML = "";
-    data.forEach((matches, r) => {
-      out.appendChild(format === "line"
-        ? renderLine(r, courts, matches)
-        : renderTable(r, matches)
-      );
-    });
+
+    if(mode === "mixed"){
+      const men = parseList($("men").value);
+      const women = parseList($("women").value);
+      if(men.length === 0 || women.length === 0){
+        showWarn("男子・女子が空です。人数から自動生成するか、手入力してください。");
+        return;
+      }
+
+      const { output, strictFailed } = genMixed(rounds, courts, rule);
+
+      if(rule === "strict" && strictFailed > 0){
+        showWarn(`⚠ 同ペア完全禁止が成立しないラウンドが ${strictFailed} 回ありました。条件（人数・コート数・ラウンド数）によっては不可能です。`);
+      }
+
+      output.forEach((matches, r) => out.appendChild(renderRound(r, matches)));
+      return;
+    }
+
+    // normal
+    const players = parseList($("players").value);
+    if(players.length < courts*4){
+      showWarn(`参加者が足りません（最低 ${courts*4} 人）`);
+      return;
+    }
+
+    const { output, strictFailed } = genNormal(rounds, courts, rule);
+    if(rule === "strict" && strictFailed > 0){
+      showWarn(`⚠ 同ペア完全禁止が成立しないラウンドが ${strictFailed} 回ありました。条件（人数・コート数・ラウンド数）によっては不可能です。`);
+    }
+    output.forEach((matches, r) => out.appendChild(renderRound(r, matches)));
   }
 
+  function showWarn(msg){
+    $("status").style.display = "block";
+    $("status").textContent = msg;
+  }
+
+  // ===== UIイベント =====
   $("mode").addEventListener("change", () => {
-    const isMixed = $("mode").value === "mixed";
-    $("normalBox").style.display = isMixed ? "none" : "block";
-    $("mixedBox").style.display = isMixed ? "block" : "none";
+    const mixed = $("mode").value === "mixed";
+    $("normalBox").style.display = mixed ? "none" : "block";
+    $("mixedBox").style.display = mixed ? "block" : "none";
   });
 
-  $("gen").addEventListener("click", rebuild);
+  $("autoFill").addEventListener("click", (e) => {
+    e.preventDefault();
+    autofill();
+  });
+
+  $("gen").addEventListener("click", generate);
   $("print").addEventListener("click", () => window.print());
   $("clear").addEventListener("click", () => {
     $("players").value = "";
     $("men").value = "";
     $("women").value = "";
     $("output").innerHTML = "";
+    $("status").style.display = "none";
   });
+
+  // 初期：混合人数の自動生成を一回入れておく
+  autofill();
 </script>
 </body>
 </html>
