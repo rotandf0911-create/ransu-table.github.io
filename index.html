@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>混合ダブルス乱数表（テニスベア風）</title>
+  <title>混合ダブルス乱数表（テニスベア風・枠付き）</title>
 
   <style>
     body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;background:#f6f7f9}
     header{background:#111827;color:#fff;padding:14px}
     header h1{margin:0;font-size:18px}
-    main{max-width:900px;margin:auto;padding:16px}
+    main{max-width:980px;margin:auto;padding:16px}
 
     .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
     .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
@@ -19,17 +19,55 @@
     button.primary{background:#111827;color:#fff;border:none;cursor:pointer}
     button.ghost{cursor:pointer}
 
-    /* ===== テニスベア風 表 ===== */
-    .round{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:10px 0}
-    .round-title{font-weight:700;margin-bottom:8px}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-top:1px solid #e5e7eb;padding:10px}
-    th{width:120px;text-align:left;color:#374151}
+    /* ===== 出力を大きく ===== */
+    .out { font-size: 18px; }                  /* 全体の基準サイズ */
+    .round{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0}
+    .round-title{font-weight:800;margin-bottom:10px;font-size:18px}
 
-    /* 色分け */
-    .male{color:#2563eb;font-weight:700}   /* 男＝青 */
-    .female{color:#dc2626;font-weight:700} /* 女＝赤 */
-    .rest{color:#6b7280;font-style:italic}
+    /* テニスベア風 表 */
+    table{width:100%;border-collapse:collapse}
+    th,td{border-top:1px solid #e5e7eb;padding:12px;vertical-align:middle}
+    th{width:120px;text-align:left;color:#374151;font-weight:800;font-size:16px}
+
+    /* ===== ペアを枠で囲う（見やすさUP） ===== */
+    .match {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .pairbox{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:10px 14px;
+      border:2px solid #111827;
+      border-radius:14px;
+      background:#fff;
+      line-height:1;
+      font-size:22px;             /* ペアの数字を大きく */
+      font-weight:900;
+      letter-spacing:0.2px;
+      min-width: 120px;
+      justify-content:center;
+    }
+    .vs{
+      font-weight:900;
+      font-size:18px;
+      color:#111827;
+    }
+
+    /* 色分け：番号のみ */
+    .male{color:#2563eb;font-weight:900}
+    .female{color:#dc2626;font-weight:900}
+
+    /* 休 */
+    .restbox{
+      border:2px dashed #9ca3af;
+      color:#6b7280;
+      font-style:italic;
+      background:#f9fafb;
+    }
 
     .warn{color:#b91c1c;font-size:13px;margin-top:8px}
 
@@ -40,13 +78,15 @@
       .card{box-shadow:none;border-radius:0}
       .round{break-inside:avoid}
       .pagebreak{page-break-after:always}
+      .out { font-size: 16px; }      /* 印刷時も小さくなりすぎない */
+      .pairbox{ font-size:20px; }
     }
   </style>
 </head>
 
 <body>
 <header>
-  <h1>混合ダブルス乱数表（テニスベア風）</h1>
+  <h1>混合ダブルス乱数表（テニスベア風・枠付き）</h1>
 </header>
 
 <main>
@@ -85,7 +125,7 @@
     <div id="status" class="warn"></div>
   </div>
 
-  <div class="card">
+  <div class="card out">
     <div id="output"></div>
   </div>
 </main>
@@ -131,8 +171,12 @@
     return res;
   }
 
-  function pairHTML(m,w){
-    return `<span class="male">${m}</span>.<span class="female">${w}</span>`;
+  // ペアを「枠＋色付き数字」でHTML化
+  function pairBoxHTML(m,w){
+    return `<span class="pairbox"><span class="male">${m}</span>.<span class="female">${w}</span></span>`;
+  }
+  function restBoxHTML(){
+    return `<span class="pairbox restbox">休</span>`;
   }
 
   function generate(){
@@ -152,7 +196,7 @@
       let pairs=[];
       if(rule==="strict"){
         let got=null;
-        for(let t=0;t<100;t++){ got=makePairsStrict(men,women,need,used); if(got) break; }
+        for(let t=0;t<120;t++){ got=makePairsStrict(men,women,need,used); if(got) break; }
         if(!got){ fail++; pairs=makePairsSoft(men,women,need); }
         else{ pairs=got; pairs.forEach(p=>used.add(key(p[0],p[1]))); }
       }else{
@@ -160,6 +204,7 @@
       }
 
       const ps=shuffle(pairs);
+
       const round=document.createElement("div");
       round.className="round";
       if((r+1)%10===0) round.classList.add("pagebreak");
@@ -167,17 +212,26 @@
 
       const t=document.createElement("table");
       const tb=document.createElement("tbody");
+
       for(let c=0;c<courts;c++){
         const tr=document.createElement("tr");
+
         const th=document.createElement("th");
         th.textContent=`${courtName(c)}コート`;
+
         const td=document.createElement("td");
-        const L=ps[c*2] ? pairHTML(ps[c*2][0],ps[c*2][1]) : `<span class="rest">休</span>`;
-        const R=ps[c*2+1] ? pairHTML(ps[c*2+1][0],ps[c*2+1][1]) : `<span class="rest">休</span>`;
-        td.innerHTML=`${L} vs ${R}`;
-        tr.appendChild(th); tr.appendChild(td); tb.appendChild(tr);
+        const L = ps[c*2]   ? pairBoxHTML(ps[c*2][0],ps[c*2][1]) : restBoxHTML();
+        const R = ps[c*2+1] ? pairBoxHTML(ps[c*2+1][0],ps[c*2+1][1]) : restBoxHTML();
+
+        td.innerHTML = `<div class="match">${L}<span class="vs">vs</span>${R}</div>`;
+
+        tr.appendChild(th);
+        tr.appendChild(td);
+        tb.appendChild(tr);
       }
-      t.appendChild(tb); round.appendChild(t);
+
+      t.appendChild(tb);
+      round.appendChild(t);
       $("output").appendChild(round);
     }
 
