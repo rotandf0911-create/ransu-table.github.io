@@ -3,121 +3,50 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>混合ダブルス乱数表（人数入力のみ・番号色分け）</title>
+  <title>混合ダブルス乱数表（テニスベア風）</title>
 
   <style>
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      margin:0;
-      background:#f6f7f9;
-    }
-    header {
-      background:#111827;
-      color:#fff;
-      padding:14px;
-    }
-    header h1 { margin:0; font-size:18px; }
+    body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;background:#f6f7f9}
+    header{background:#111827;color:#fff;padding:14px}
+    header h1{margin:0;font-size:18px}
+    main{max-width:900px;margin:auto;padding:16px}
 
-    main {
-      max-width:900px;
-      margin:auto;
-      padding:16px;
-    }
+    .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+    .field{flex:1 1 160px}
+    label{font-size:12px;color:#374151;display:block;margin-bottom:6px}
+    input,select,button{width:100%;padding:10px;border-radius:10px;border:1px solid #d1d5db;font:inherit;background:#fff}
+    button.primary{background:#111827;color:#fff;border:none;cursor:pointer}
+    button.ghost{cursor:pointer}
 
-    .card {
-      background:#fff;
-      border-radius:12px;
-      padding:14px;
-      margin-bottom:12px;
-      box-shadow:0 2px 8px rgba(0,0,0,.08);
-    }
+    /* ===== テニスベア風 表 ===== */
+    .round{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:10px 0}
+    .round-title{font-weight:700;margin-bottom:8px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-top:1px solid #e5e7eb;padding:10px}
+    th{width:120px;text-align:left;color:#374151}
 
-    .row {
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      align-items:flex-end;
-    }
+    /* 色分け */
+    .male{color:#2563eb;font-weight:700}   /* 男＝青 */
+    .female{color:#dc2626;font-weight:700} /* 女＝赤 */
+    .rest{color:#6b7280;font-style:italic}
 
-    .field {
-      flex:1 1 160px;
-    }
+    .warn{color:#b91c1c;font-size:13px;margin-top:8px}
 
-    label {
-      font-size:12px;
-      color:#374151;
-      display:block;
-      margin-bottom:6px;
-    }
-
-    input, select, button {
-      width:100%;
-      padding:10px;
-      border-radius:10px;
-      border:1px solid #d1d5db;
-      font:inherit;
-      background:#fff;
-    }
-
-    button.primary {
-      background:#111827;
-      color:#fff;
-      border:none;
-      cursor:pointer;
-    }
-
-    button.ghost {
-      cursor:pointer;
-    }
-
-    /* ===== 表示用 ===== */
-    .round {
-      border:1px solid #e5e7eb;
-      border-radius:10px;
-      padding:10px;
-      margin:10px 0;
-    }
-
-    .round-title {
-      font-weight:700;
-      margin-bottom:6px;
-    }
-
-    .male {
-      color:#2563eb;   /* 男＝青 */
-      font-weight:700;
-    }
-
-    .female {
-      color:#dc2626;   /* 女＝赤 */
-      font-weight:700;
-    }
-
-    .rest {
-      color:#6b7280;
-      font-style:italic;
-    }
-
-    .warn {
-      color:#b91c1c;
-      font-size:13px;
-      margin-top:8px;
-    }
-
-    /* ===== 印刷（A4縦） ===== */
-    @media print {
-      header, .controls { display:none; }
-      main { max-width:none; padding:0; }
-      .card { box-shadow:none; border-radius:0; }
-      .round { break-inside: avoid; }
-      .pagebreak { page-break-after: always; }
+    /* 印刷（A4縦） */
+    @media print{
+      header,.controls{display:none}
+      main{max-width:none;padding:0}
+      .card{box-shadow:none;border-radius:0}
+      .round{break-inside:avoid}
+      .pagebreak{page-break-after:always}
     }
   </style>
 </head>
 
 <body>
 <header>
-  <h1>混合ダブルス乱数表（番号色分け）</h1>
+  <h1>混合ダブルス乱数表（テニスベア風）</h1>
 </header>
 
 <main>
@@ -127,22 +56,18 @@
         <label>コート数</label>
         <input type="number" id="courts" value="3" min="1" max="10">
       </div>
-
       <div class="field">
         <label>ラウンド数</label>
         <input type="number" id="rounds" value="10" min="1" max="60">
       </div>
-
       <div class="field">
         <label>男（人数）</label>
         <input type="number" id="menCount" value="10" min="0" max="60">
       </div>
-
       <div class="field">
         <label>女（人数）</label>
         <input type="number" id="womenCount" value="10" min="0" max="60">
       </div>
-
       <div class="field">
         <label>同ペア</label>
         <select id="rule">
@@ -153,12 +78,8 @@
     </div>
 
     <div class="row" style="margin-top:12px;">
-      <div class="field">
-        <button class="primary" id="gen">生成</button>
-      </div>
-      <div class="field">
-        <button class="ghost" id="print">印刷</button>
-      </div>
+      <div class="field"><button class="primary" id="gen">生成</button></div>
+      <div class="field"><button class="ghost" id="print">印刷</button></div>
     </div>
 
     <div id="status" class="warn"></div>
@@ -170,140 +91,103 @@
 </main>
 
 <script>
-  const $ = (id) => document.getElementById(id);
+  const $ = (id)=>document.getElementById(id);
 
-  function makeList(n){
-    return Array.from({length:n}, (_,i)=>i+1);
-  }
+  const makeList = (n)=>Array.from({length:n},(_,i)=>i+1);
+  const shuffle = (a)=>{const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+  const courtName = (i)=>String.fromCharCode(65+i);
+  const key = (m,w)=>m+"||"+w;
 
-  function shuffle(arr){
-    const a = arr.slice();
-    for(let i=a.length-1;i>0;i--){
-      const j=Math.floor(Math.random()*(i+1));
-      [a[i],a[j]]=[a[j],a[i]];
-    }
-    return a;
-  }
-
-  function courtName(i){
-    return String.fromCharCode(65+i);
-  }
-
-  function pairKey(m,w){
-    return m + "||" + w;
-  }
-
-  function makePairsStrict(men, women, needPairs, used){
-    const M = shuffle(men);
-    const W = shuffle(women);
-    const n = Math.min(needPairs, M.length, W.length);
-    const mPick = M.slice(0, n);
-
-    const usedW = new Set();
-    const res = [];
-
+  function makePairsStrict(men,women,need,used){
+    const M=shuffle(men), W=shuffle(women);
+    const n=Math.min(need,M.length,W.length);
+    const pick=M.slice(0,n);
+    const usedW=new Set(), res=[];
     function dfs(i){
-      if(i === mPick.length) return true;
-      const m = mPick[i];
-
-      const cand = shuffle(W).filter(w => !usedW.has(w) && !used.has(pairKey(m,w)));
+      if(i===pick.length) return true;
+      const m=pick[i];
+      const cand=shuffle(W).filter(w=>!usedW.has(w)&&!used.has(key(m,w)));
       for(const w of cand){
-        usedW.add(w);
-        res.push([m,w]);
+        usedW.add(w); res.push([m,w]);
         if(dfs(i+1)) return true;
-        res.pop();
-        usedW.delete(w);
+        res.pop(); usedW.delete(w);
       }
       return false;
     }
-
-    return dfs(0) ? res : null;
+    return dfs(0)?res:null;
   }
 
-  function makePairsSoft(men, women, needPairs){
-    const M = shuffle(men);
-    const W = shuffle(women);
-    const n = Math.min(needPairs, M.length, W.length);
-    const usedW = new Set();
-    const res = [];
-
+  function makePairsSoft(men,women,need){
+    const M=shuffle(men), W=shuffle(women);
+    const n=Math.min(need,M.length,W.length);
+    const usedW=new Set(), res=[];
     for(let i=0;i<n;i++){
-      const m = M[i];
-      const cand = W.filter(w => !usedW.has(w));
-      if(cand.length === 0) break;
-      const w = cand[Math.floor(Math.random()*cand.length)];
-      usedW.add(w);
-      res.push([m,w]);
+      const m=M[i];
+      const cand=W.filter(w=>!usedW.has(w));
+      if(!cand.length) break;
+      const w=cand[Math.floor(Math.random()*cand.length)];
+      usedW.add(w); res.push([m,w]);
     }
     return res;
   }
 
+  function pairHTML(m,w){
+    return `<span class="male">${m}</span>.<span class="female">${w}</span>`;
+  }
+
   function generate(){
-    const courts = Number($("courts").value);
-    const rounds = Number($("rounds").value);
-    const mc = Number($("menCount").value);
-    const wc = Number($("womenCount").value);
-    const rule = $("rule").value;
+    const courts=Number($("courts").value);
+    const rounds=Number($("rounds").value);
+    const men=makeList(Number($("menCount").value));
+    const women=makeList(Number($("womenCount").value));
+    const rule=$("rule").value;
 
-    const men = makeList(mc);
-    const women = makeList(wc);
-
-    const needPairs = courts * 2;
-    const used = new Set();
-
-    $("output").innerHTML = "";
-    $("status").textContent = "";
-
-    let strictFail = 0;
+    const need=courts*2;
+    const used=new Set();
+    $("output").innerHTML="";
+    $("status").textContent="";
+    let fail=0;
 
     for(let r=0;r<rounds;r++){
-      let pairs = [];
-
-      if(rule === "strict"){
-        let got = null;
-        for(let t=0;t<100;t++){
-          got = makePairsStrict(men, women, needPairs, used);
-          if(got) break;
-        }
-        if(!got){
-          strictFail++;
-          pairs = makePairsSoft(men, women, needPairs);
-        } else {
-          pairs = got;
-          pairs.forEach(p => used.add(pairKey(p[0],p[1])));
-        }
-      } else {
-        pairs = makePairsSoft(men, women, needPairs);
+      let pairs=[];
+      if(rule==="strict"){
+        let got=null;
+        for(let t=0;t<100;t++){ got=makePairsStrict(men,women,need,used); if(got) break; }
+        if(!got){ fail++; pairs=makePairsSoft(men,women,need); }
+        else{ pairs=got; pairs.forEach(p=>used.add(key(p[0],p[1]))); }
+      }else{
+        pairs=makePairsSoft(men,women,need);
       }
 
-      const pairHTML = shuffle(
-        pairs.map(([m,w]) =>
-          `<span class="male">${m}</span>.<span class="female">${w}</span>`
-        )
-      );
+      const ps=shuffle(pairs);
+      const round=document.createElement("div");
+      round.className="round";
+      if((r+1)%10===0) round.classList.add("pagebreak");
+      round.innerHTML=`<div class="round-title">第${r+1}ラウンド</div>`;
 
-      const div = document.createElement("div");
-      div.className = "round";
-      if((r+1)%10===0) div.classList.add("pagebreak");
-
-      div.innerHTML = `<div class="round-title">第${r+1}ラウンド</div>`;
+      const t=document.createElement("table");
+      const tb=document.createElement("tbody");
       for(let c=0;c<courts;c++){
-        const L = pairHTML[c*2] ?? `<span class="rest">休</span>`;
-        const R = pairHTML[c*2+1] ?? `<span class="rest">休</span>`;
-        div.innerHTML += `<div><b>${courtName(c)}コート</b>： ${L} vs ${R}</div>`;
+        const tr=document.createElement("tr");
+        const th=document.createElement("th");
+        th.textContent=`${courtName(c)}コート`;
+        const td=document.createElement("td");
+        const L=ps[c*2] ? pairHTML(ps[c*2][0],ps[c*2][1]) : `<span class="rest">休</span>`;
+        const R=ps[c*2+1] ? pairHTML(ps[c*2+1][0],ps[c*2+1][1]) : `<span class="rest">休</span>`;
+        td.innerHTML=`${L} vs ${R}`;
+        tr.appendChild(th); tr.appendChild(td); tb.appendChild(tr);
       }
-
-      $("output").appendChild(div);
+      t.appendChild(tb); round.appendChild(t);
+      $("output").appendChild(round);
     }
 
-    if(rule === "strict" && strictFail > 0){
-      $("status").textContent =
-        `⚠ 同ペア完全禁止が成立しないラウンドが ${strictFail} 回ありました（人数・条件による制約）`;
+    if(rule==="strict" && fail>0){
+      $("status").textContent=`⚠ 同ペア完全禁止が成立しないラウンドが ${fail} 回ありました（人数・条件による制約）`;
     }
   }
 
   $("gen").addEventListener("click", generate);
-  $("print").addEventListener("click", () => window.print());
+  $("print").addEventListener("click", ()=>window.print());
 </script>
 </body>
 </html>
