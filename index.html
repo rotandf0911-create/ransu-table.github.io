@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>乱数表（全部入り）</title>
+<title>シングル・ダブルス乱数表（テニス・バド）</title>
 
 <!-- PWA（任意：manifest.json / sw.js があるなら効く） -->
 <link rel="manifest" href="manifest.json">
@@ -171,7 +171,7 @@ th{width:120px;text-align:left;color:#374151;font-weight:800;white-space:nowrap}
 
 <body>
 <header>
-  <h1>乱数表（全部入り）</h1>
+  <h1>シングル・ダブルス乱数表（テニス・バド）</h1>
 </header>
 
 <main>
@@ -633,6 +633,7 @@ function generate(){
           }
         } else {
           const allTokens = men.map(m=>playerTok("M",m)).concat(women.map(f=>playerTok("F",f)));
+          const needMatches = courts;
           const needPlayers = needMatches*2;
 
           const tokenGames = {};
