@@ -339,10 +339,8 @@ function pickByLeastGames(list, counts, need, balanceOn){
 const u = (a,b) => (a<b ? `${a}~${b}` : `${b}~${a}`);
 const playerTok = (sex, n) => `${sex}${n}`;                    // M1 / F3
 const singlesKey = (p,q) => (p<q ? `${p}~${q}` : `${q}~${p}`);  // 対戦（順不同）
-
 const pairKeyMixed = (m,f) => `X:${m}|${f}`;                   // 混合ペア
 const pairKeySame  = (sex,a,b) => `${sex}:${u(a,b)}`;          // 同性ペア
-
 const matchupKey = (A,B) => {
   const a = JSON.stringify(A), b = JSON.stringify(B);
   return (a<b) ? `${a}||${b}` : `${b}||${a}`;
@@ -361,7 +359,6 @@ function maxMatchingBipartite(menPool, womenPool, edgesAllowed){
     }
     adj.set(m, cand);
   }
-
   const INF = 1e9;
   const pairU = new Map(); // m -> f
   const pairV = new Map(); // f -> m
@@ -693,7 +690,6 @@ function generate(){
           }
         }
 
-        // 集計＆重複記録
         for(const ab of matches){
           if(!ab) continue;
           const [a,b]=ab;
@@ -1095,8 +1091,7 @@ function rebuildRoundCache(){
 
 function setMonitorView(v){
   __monitorPageSize = (String(v)==="2") ? 2 : 1;
-  const base = (__monitorPageSize===2) ? (__roundIndex - (__roundIndex % 2)) : __roundIndex;
-  showRound(base);
+  showRound(__roundIndex); // スライド式なので揃えない
 }
 
 function fitMonitorRound(){
@@ -1144,8 +1139,15 @@ function closeMonitor(){
 function showRound(i){
   if(__roundData.length===0) return;
 
-  if(__monitorPageSize===2) i = i - (i % 2);
-  __roundIndex = Math.max(0, Math.min(i, __roundData.length-1));
+  // ★ 2R表示の時は「最後-1」で止める（例：第9・第10）
+  if(__monitorPageSize===2){
+    const maxStart = Math.max(0, __roundData.length - 2);
+    i = Math.max(0, Math.min(i, maxStart));
+  } else {
+    i = Math.max(0, Math.min(i, __roundData.length - 1));
+  }
+
+  __roundIndex = i;
 
   const box = document.getElementById("monitorScale");
 
@@ -1180,16 +1182,29 @@ function showRound(i){
     const ra = __roundData[a];
     const rb = __roundData[b];
 
-    box.innerHTML = `<div class="monitor-pack">${renderOneRound(ra)}${a===b ? "" : renderOneRound(rb)}</div>`;
+    box.innerHTML = `<div class="monitor-pack">${renderOneRound(ra)}${renderOneRound(rb)}</div>`;
     document.getElementById("monitorTitle").textContent =
-      `モニター表示：${ra.titleText}${a===b ? "" : `・${rb.titleText}`} / 全${__roundData.length}ラウンド`;
+      `モニター表示：${ra.titleText}・${rb.titleText} / 全${__roundData.length}ラウンド`;
   }
 
   fitMonitorRound();
 }
 
-function nextRound(){ showRound(__roundIndex + __monitorPageSize); }
-function prevRound(){ showRound(__roundIndex - __monitorPageSize); }
+/* ★ スライド式 + 最後は第9・第10で止める */
+function nextRound(){
+  if(__roundData.length===0) return;
+
+  if(__monitorPageSize===2){
+    const maxStart = Math.max(0, __roundData.length - 2);
+    showRound(Math.min(__roundIndex + 1, maxStart)); // 1つ進める（スライド）
+  } else {
+    showRound(Math.min(__roundIndex + 1, __roundData.length - 1));
+  }
+}
+function prevRound(){
+  if(__roundData.length===0) return;
+  showRound(Math.max(__roundIndex - 1, 0));
+}
 
 function toggleFullscreen(){
   const mon=document.getElementById("monitor");
