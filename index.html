@@ -144,6 +144,15 @@ th{width:120px;text-align:left;color:#374151;font-weight:800;white-space:nowrap}
   padding:12px 16px;
 }
 
+/* ★追加：モニター2R表示で4コート以上なら左右に並べる */
+.monitor-pack.side-by-side{
+  flex-direction:row;
+  align-items:stretch;
+}
+.monitor-pack.side-by-side .monitor-round{
+  flex:1 1 0;
+}
+
 /* ===== スマホ横向き最適化 ===== */
 @media (orientation: landscape) and (max-height: 520px) {
   header{padding:8px}
@@ -453,12 +462,10 @@ function maxPairsGeneral(playersTokens, usedSet, keyFn){
       return;
     }
 
-    // a を休にする
     remaining.delete(a);
     dfs(current);
     remaining.add(a);
 
-    // a を誰かと組む
     for(const b of avail.get(a)){
       if(!remaining.has(b)) continue;
       remaining.delete(a); remaining.delete(b);
@@ -1183,7 +1190,16 @@ function showRound(i){
     const ra = __roundData[a];
     const rb = __roundData[b];
 
-    box.innerHTML = `<div class="monitor-pack">${renderOneRound(ra)}${renderOneRound(rb)}</div>`;
+    // ★ 4コート以上なら左右（横）に並べる（3以下は縦のまま）
+    const courtsCount = Math.max(ra.lines.length, rb.lines.length);
+    const sideBySide = courtsCount >= 4;
+
+    box.innerHTML =
+      `<div class="monitor-pack ${sideBySide ? "side-by-side" : ""}">` +
+        `${renderOneRound(ra)}` +
+        `${renderOneRound(rb)}` +
+      `</div>`;
+
     document.getElementById("monitorTitle").textContent =
       `モニター表示：${ra.titleText}・${rb.titleText} / 全${__roundData.length}ラウンド`;
   }
