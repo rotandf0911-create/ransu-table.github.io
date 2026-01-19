@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>シングル・ダブルス乱数表（テニス・バド）</title>
 
-<!-- PWA（manifest.json / sw.js があるなら効く） -->
-<link rel="manifest" href="manifest.json">
+<!-- PWA（manifest.json / sw.js） -->
+<link rel="manifest" href="manifest.json?v=2">
 <meta name="theme-color" content="#111827">
 
-<!-- アイコン（icons/ に配置すると効く） -->
-<link rel="icon" href="icons/favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
-<link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
-<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+<!-- アイコン（v2：キャッシュ対策） -->
+<link rel="icon" href="icons/favicon-v2.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180-v2.png">
+<link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167-v2.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152-v2.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
@@ -153,13 +153,8 @@ th{width:120px;text-align:left;color:#374151;font-weight:800;white-space:nowrap}
 }
 
 /* ★モニター2R：4コート以上なら左右2カラム（横並び） */
-.monitor-pack.side-by-side{
-  flex-direction:row;
-  align-items:stretch;
-}
-.monitor-pack.side-by-side .monitor-round{
-  flex:1 1 0;
-}
+.monitor-pack.side-by-side{flex-direction:row;align-items:stretch;}
+.monitor-pack.side-by-side .monitor-round{flex:1 1 0;}
 
 /* ===== スマホ横向き最適化 ===== */
 @media (orientation: landscape) and (max-height: 520px) {
@@ -318,6 +313,8 @@ th{width:120px;text-align:left;color:#374151;font-weight:800;white-space:nowrap}
 /* =========================
    ユーティリティ
 ========================= */
+const APP_VERSION = "v2"; // ★キャッシュ更新用（アイコンを変えたらここも変える）
+
 const makeList = n => Array.from({length:n}, (_,i)=>i+1);
 const shuffle = a => { const b=a.slice(); for(let i=b.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [b[i],b[j]]=[b[j],b[i]]; } return b; };
 const courtName = i => String.fromCharCode(65+i);
@@ -356,8 +353,7 @@ function pickByLeastGames(list, counts, need, balanceOn){
 const u = (a,b) => (a<b ? `${a}~${b}` : `${b}~${a}`);
 const playerTok = (sex, n) => `${sex}${n}`;                    // M1 / F3
 const singlesKey = (p,q) => (p<q ? `${p}~${q}` : `${q}~${p}`);  // 対戦（順不同）
-const pairKeyMixed = (m,f) => `X:${m}|${f}`;                   // 旧：混合ペア
-const pairKeySame  = (sex,a,b) => `${sex}:${u(a,b)}`;          // 同性ペア（旧：男女別で使用）
+const pairKeySame  = (sex,a,b) => `${sex}:${u(a,b)}`;          // 男女別用
 const matchupKey = (A,B) => {
   const a = JSON.stringify(A), b = JSON.stringify(B);
   return (a<b) ? `${a}||${b}` : `${b}||${a}`;
@@ -365,7 +361,7 @@ const matchupKey = (A,B) => {
 const oppKey = (p,q) => (p<q ? `${p}~${q}` : `${q}~${p}`);
 
 /* =========================
-   トークン共通（混合ダブルスで同性ペアも許可するため）
+   混合ダブルス用：同性ペアも扱う
 ========================= */
 const sexOfTok = t => (t && t[0]) || "";
 const numOfTok = t => Number(String(t).slice(1));
@@ -487,12 +483,10 @@ function maxPairsGeneral(playersTokens, usedSet, keyFn){
       return;
     }
 
-    // a を休にする
     remaining.delete(a);
     dfs(current);
     remaining.add(a);
 
-    // a を誰かと組む
     for(const b of avail.get(a)){
       if(!remaining.has(b)) continue;
       remaining.delete(a); remaining.delete(b);
@@ -520,7 +514,6 @@ function maxPairsGeneralPreferMixed(playersTokens, usedSet, keyFn){
       if(a===b) continue;
       if(!usedSet.has(keyFn(a,b))) cand.push(b);
     }
-    // ★ 異性（混合）を先に試す
     cand.sort((x,y)=>{
       const mx = isMixedPairTok(a,x) ? 0 : 1;
       const my = isMixedPairTok(a,y) ? 0 : 1;
@@ -658,7 +651,7 @@ function generate(){
   const womenGames = initCounts(womenCount);
 
   const tracking = {
-    doublesPairsUsed: new Set(),     // ★ 混合ダブルスは pairKeyTok で管理（同性ペアも含む）
+    doublesPairsUsed: new Set(),     // ★混合ダブルス：pairKeyTokで同性も含め管理
     doublesMatchupsUsed: new Set(),
     opponentsUsed: new Set(),
     singlesMatchupsUsed: new Set()
@@ -822,33 +815,27 @@ function generate(){
         out.appendChild(roundDiv);
 
       } else {
-        /* ===== 混合ダブルス（ミックス優先＋同性ペアも可＋均等化） ===== */
+        /* ===== 混合ダブルス：ミックス優先＋同性ペアも作成＋均等化 ===== */
         const courtsN = courts;
         const needPairs = courtsN * 2;
         const needPlayers = courtsN * 4;
 
-        // 全プレイヤーをトークン化
         const allTokens = men.map(m=>playerTok("M",m)).concat(women.map(f=>playerTok("F",f)));
 
-        // トークンごとの試合数（均等化用）
         const tokenGames = {};
         for(const m of men) tokenGames[playerTok("M",m)] = menGames[m] ?? 0;
         for(const f of women) tokenGames[playerTok("F",f)] = womenGames[f] ?? 0;
 
-        // 出場候補（試合数が少ない人優先＋少し多めにプール）
         const poolSize = Math.min(allTokens.length, Math.max(needPlayers + 4, needPlayers));
         const pool = pickByLeastGames(allTokens, tokenGames, poolSize, balanceOn);
 
-        // ペア作成
         let pairsTok = [];
 
         if(avoidMode === "strict"){
-          // 同ペア完全禁止（ミックス優先で最大ペア）
           pairsTok = maxPairsGeneralPreferMixed(pool, tracking.doublesPairsUsed, pairKeyTok);
           if(pairsTok.length < needPairs) strictShortageRounds++;
           pairsTok = shuffle(pairsTok).slice(0, needPairs);
         } else {
-          // soft/off：ミックス優先・既出ペア回避・偏り抑制のスコアで最良を採用
           const makeCandidatePairs = ()=>{
             const A = shuffle(pool);
             const res=[];
@@ -867,10 +854,9 @@ function generate(){
               sumGames += (tokenGames[a] ?? 0) + (tokenGames[b] ?? 0);
             }
 
-            // 重み（混合優先の強さ：必要ならここを上げる）
-            const wSame = 120;   // 同性ペアのペナルティ
-            const wRep  = 200;   // 既出ペアのペナルティ
-            const wGames = 1;    // なるべく試合数が少ない人を選ぶ
+            const wSame = 120;   // 同性ペアを減らす
+            const wRep  = 200;   // 同ペアを減らす
+            const wGames = 1;    // 試合少ない人を拾う
 
             return sameSex*wSame + repPair*wRep + sumGames*wGames;
           };
@@ -878,11 +864,9 @@ function generate(){
           pairsTok = bestOfTries(makeCandidatePairs, scorePairs, PAIR_TRIES) || [];
         }
 
-        // ペア→試合（2ペアで1コート）
         let matches = Array.from({length:courtsN}, ()=>[null,null]);
 
         if(avoidMode==="soft"){
-          // 相手被りもできるだけ回避
           const makeOppEdgesTok = (p1,p2)=>{
             const A=[p1[0],p1[1]];
             const B=[p2[0],p2[1]];
@@ -922,7 +906,6 @@ function generate(){
           }
         }
 
-        // 試合数加算＆履歴
         for(const [p1,p2] of matches){
           if(p1){
             tracking.doublesPairsUsed.add(pairKeyTok(p1[0],p1[1]));
@@ -947,7 +930,6 @@ function generate(){
           }
         }
 
-        // 表示
         roundDiv.appendChild(renderTableRows(courtsN, (c)=>{
           const [p1,p2] = matches[c];
           const L = p1
@@ -994,7 +976,7 @@ function generate(){
                 pairsTok = bestOfTries(
                   ()=>{ const A=shuffle(pool); const res=[]; for(let i=0;i+1<A.length;i+=2) res.push([A[i],A[i+1]]); return res.slice(0, needMatches); },
                   (cand)=>{ let rep=0; for(const [a,b] of cand){ if(tracking.singlesMatchupsUsed.has(singlesKey(a,b))) rep++; } return rep*100; },
-                  PAIR_TRIES
+                  250
                 ) || [];
               } else {
                 const A=shuffle(pool); pairsTok=[]; for(let i=0;i+1<A.length;i+=2) pairsTok.push([A[i],A[i+1]]);
@@ -1018,37 +1000,25 @@ function generate(){
 
         } else {
           // 男子ダブルス
-          const needPairs = bc*2;
           const needPlayers = bc*4;
           let pairs = [];
-
           if(menCount>=2){
-            if(avoidMode==="strict"){
-              const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), men.length);
-              const poolNums = pickByLeastGames(men, menGames, poolSize, true);
-              const poolTok = poolNums.map(n=>playerTok("M",n));
+            const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), men.length);
+            const poolNums = pickByLeastGames(men, menGames, poolSize, true);
+            const poolTok = poolNums.map(n=>playerTok("M",n));
 
+            if(avoidMode==="strict"){
               const pairsTok = maxPairsGeneral(poolTok, tracking.doublesPairsUsed,
                 (a,b)=>pairKeySame("M", Number(a.slice(1)), Number(b.slice(1)))
               );
               pairs = pairsTok.map(([a,b])=>[Number(a.slice(1)), Number(b.slice(1))]);
-              if(pairs.length < needPairs) strictShortageRounds++;
             } else {
-              const menSel = pickByLeastGames(men, menGames, needPlayers, balanceOn);
-              if(avoidMode==="soft"){
-                pairs = bestOfTries(
-                  ()=>{ const A=shuffle(menSel); const res=[]; for(let i=0;i+1<A.length;i+=2) res.push([A[i],A[i+1]]); return res; },
-                  (cand)=>{ let rep=0; for(const [a,b] of cand){ if(tracking.doublesPairsUsed.has(pairKeySame("M",a,b))) rep++; } return rep*100; },
-                  PAIR_TRIES
-                ) || [];
-              } else {
-                const A=shuffle(menSel); for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
-              }
+              const A=shuffle(poolNums);
+              for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
             }
           }
 
-          const basePairs = pairs.slice(0, Math.min(pairs.length, needPairs));
-          const ps = shuffle(basePairs);
+          const ps = shuffle(pairs);
           const matches = Array.from({length:bc}, (_,c)=>[ps[c*2]??null, ps[c*2+1]??null]);
 
           for(const [p1,p2] of matches){
@@ -1081,21 +1051,12 @@ function generate(){
               const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), womenTokens.length);
               const pool = pickByLeastGames(womenTokens, tokenGames, poolSize, true);
               const pairsTok = maxPairsGeneral(pool, tracking.singlesMatchupsUsed, (a,b)=>singlesKey(a,b));
-              if(pairsTok.length < needMatches) strictShortageRounds++;
               const ps = shuffle(pairsTok);
               for(let c=0;c<gc;c++) matches[c] = ps[c] ?? null;
             } else {
-              const pool = pickByLeastGames(womenTokens, tokenGames, needPlayers, balanceOn);
-              let pairsTok;
-              if(avoidMode==="soft"){
-                pairsTok = bestOfTries(
-                  ()=>{ const A=shuffle(pool); const res=[]; for(let i=0;i+1<A.length;i+=2) res.push([A[i],A[i+1]]); return res.slice(0, needMatches); },
-                  (cand)=>{ let rep=0; for(const [a,b] of cand){ if(tracking.singlesMatchupsUsed.has(singlesKey(a,b))) rep++; } return rep*100; },
-                  PAIR_TRIES
-                ) || [];
-              } else {
-                const A=shuffle(pool); pairsTok=[]; for(let i=0;i+1<A.length;i+=2) pairsTok.push([A[i],A[i+1]]);
-              }
+              const pool = pickByLeastGames(womenTokens, tokenGames, needPlayers, true);
+              const A=shuffle(pool);
+              const pairsTok=[]; for(let i=0;i+1<A.length;i+=2) pairsTok.push([A[i],A[i+1]]);
               const ps = shuffle(pairsTok);
               for(let c=0;c<gc;c++) matches[c] = ps[c] ?? null;
             }
@@ -1115,37 +1076,25 @@ function generate(){
 
         } else {
           // 女子ダブルス
-          const needPairs = gc*2;
           const needPlayers = gc*4;
           let pairs = [];
-
           if(womenCount>=2){
-            if(avoidMode==="strict"){
-              const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), women.length);
-              const poolNums = pickByLeastGames(women, womenGames, poolSize, true);
-              const poolTok = poolNums.map(n=>playerTok("F",n));
+            const poolSize = Math.min(Math.max(needPlayers+2, needPlayers), women.length);
+            const poolNums = pickByLeastGames(women, womenGames, poolSize, true);
+            const poolTok = poolNums.map(n=>playerTok("F",n));
 
+            if(avoidMode==="strict"){
               const pairsTok = maxPairsGeneral(poolTok, tracking.doublesPairsUsed,
                 (a,b)=>pairKeySame("F", Number(a.slice(1)), Number(b.slice(1)))
               );
               pairs = pairsTok.map(([a,b])=>[Number(a.slice(1)), Number(b.slice(1))]);
-              if(pairs.length < needPairs) strictShortageRounds++;
             } else {
-              const womenSel = pickByLeastGames(women, womenGames, needPlayers, balanceOn);
-              if(avoidMode==="soft"){
-                pairs = bestOfTries(
-                  ()=>{ const A=shuffle(womenSel); const res=[]; for(let i=0;i+1<A.length;i+=2) res.push([A[i],A[i+1]]); return res; },
-                  (cand)=>{ let rep=0; for(const [a,b] of cand){ if(tracking.doublesPairsUsed.has(pairKeySame("F",a,b))) rep++; } return rep*100; },
-                  PAIR_TRIES
-                ) || [];
-              } else {
-                const A=shuffle(womenSel); for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
-              }
+              const A=shuffle(poolNums);
+              for(let i=0;i+1<A.length;i+=2) pairs.push([A[i],A[i+1]]);
             }
           }
 
-          const basePairs = pairs.slice(0, Math.min(pairs.length, needPairs));
-          const ps = shuffle(basePairs);
+          const ps = shuffle(pairs);
           const matches = Array.from({length:gc}, (_,c)=>[ps[c*2]??null, ps[c*2+1]??null]);
 
           for(const [p1,p2] of matches){
@@ -1174,7 +1123,7 @@ function generate(){
       `禁則は一切破っていません。その代わり一部「休」が出ます。`;
   }
 
-  rebuildRoundCache(); // ←モニター用キャッシュ更新
+  rebuildRoundCache();
 }
 
 /* =========================
@@ -1200,15 +1149,12 @@ syncUI();
 ========================= */
 let __roundData = [];
 let __roundIndex = 0;
-let __monitorPageSize = 1; // 1 or 2
+let __monitorPageSize = 1;
 
 function rebuildRoundCache(){
   const rounds = Array.from(document.querySelectorAll("#output .round"));
-
   __roundData = rounds.map((roundEl, idx) => {
-    const titleEl = roundEl.querySelector(".round-title");
-    const titleText = titleEl ? titleEl.textContent.trim() : `第${idx+1}ラウンド`;
-
+    const titleText = roundEl.querySelector(".round-title")?.textContent?.trim() || `第${idx+1}ラウンド`;
     const rows = Array.from(roundEl.querySelectorAll("table tbody tr"));
     const lines = rows.map(tr => {
       const court = (tr.querySelector("th")?.textContent || "").trim();
@@ -1218,10 +1164,8 @@ function rebuildRoundCache(){
       const right = pairs[1]?.innerHTML ?? boxRest();
       return { court, left, right };
     });
-
     return { titleText, lines };
   });
-
   __roundIndex = 0;
 }
 
@@ -1236,11 +1180,9 @@ function fitMonitorRound(){
   if(!stage || !scaleBox) return;
 
   scaleBox.style.transform = "scale(1)";
-
   requestAnimationFrame(() => {
     const availW = stage.clientWidth;
     const availH = stage.clientHeight;
-
     const contentW = scaleBox.scrollWidth;
     const contentH = scaleBox.scrollHeight;
     if(contentW <= 0 || contentH <= 0) return;
@@ -1252,19 +1194,15 @@ function fitMonitorRound(){
 }
 
 function openMonitor(){
-  if(__roundData.length===0){
-    generate();
-  } else {
-    rebuildRoundCache();
-  }
+  if(__roundData.length===0) generate();
+  else rebuildRoundCache();
+
   const mon=document.getElementById("monitor");
   mon.classList.add("show");
   mon.setAttribute("aria-hidden","false");
 
-  const sel = document.getElementById("monitorView");
-  setMonitorView(sel ? sel.value : "1");
+  setMonitorView(document.getElementById("monitorView")?.value || "1");
 }
-
 function closeMonitor(){
   const mon=document.getElementById("monitor");
   mon.classList.remove("show");
@@ -1275,14 +1213,12 @@ function closeMonitor(){
 function showRound(i){
   if(__roundData.length===0) return;
 
-  // 2R表示は「最後-1」で止める（例：第9・第10）
   if(__monitorPageSize===2){
     const maxStart = Math.max(0, __roundData.length - 2);
     i = Math.max(0, Math.min(i, maxStart));
   } else {
     i = Math.max(0, Math.min(i, __roundData.length - 1));
   }
-
   __roundIndex = i;
 
   const box = document.getElementById("monitorScale");
@@ -1318,7 +1254,6 @@ function showRound(i){
     const ra = __roundData[a];
     const rb = __roundData[b];
 
-    // ★ 4コート以上なら左右（横）に並べる（3以下は縦のまま）
     const courtsCount = Math.max(ra.lines.length, rb.lines.length);
     const sideBySide = courtsCount >= 4;
 
@@ -1335,10 +1270,8 @@ function showRound(i){
   fitMonitorRound();
 }
 
-/* ★ スライド式 + 最後は第9・第10で止める */
 function nextRound(){
   if(__roundData.length===0) return;
-
   if(__monitorPageSize===2){
     const maxStart = Math.max(0, __roundData.length - 2);
     showRound(Math.min(__roundIndex + 1, maxStart));
@@ -1353,11 +1286,8 @@ function prevRound(){
 
 function toggleFullscreen(){
   const mon=document.getElementById("monitor");
-  if(document.fullscreenElement){
-    document.exitFullscreen().catch(()=>{});
-  }else{
-    mon.requestFullscreen?.().catch(()=>{});
-  }
+  if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  else mon.requestFullscreen?.().catch(()=>{});
 }
 
 document.addEventListener("keydown",(e)=>{
@@ -1367,7 +1297,6 @@ document.addEventListener("keydown",(e)=>{
   if(e.key==="ArrowLeft"){ e.preventDefault(); prevRound(); }
   if(e.key==="Escape"){ e.preventDefault(); closeMonitor(); }
 });
-
 window.addEventListener("resize", () => {
   const mon=document.getElementById("monitor");
   if(mon.classList.contains("show")) fitMonitorRound();
@@ -1381,59 +1310,14 @@ window.addEventListener("orientationchange", () => {
    Service Worker（PWA）
 ========================= */
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+  window.addEventListener("load", async () => {
+    try{
+      const reg = await navigator.serviceWorker.register("./sw.js?v="+APP_VERSION);
+      // なるべく更新を拾う
+      reg.update?.();
+    }catch(e){}
+  });
 }
 </script>
-
-<!--
-=========================================================
-【コピペ用：manifest.json】（別ファイルで保存）
-=========================================================
-{
-  "name": "シングル・ダブルス乱数表（テニス・バド）",
-  "short_name": "乱数表",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#0b1220",
-  "theme_color": "#111827",
-  "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
-  ]
-}
-
-=========================================================
-【コピペ用：sw.js】（別ファイルで保存）
-=========================================================
-const CACHE = "rands-table-v1";
-self.addEventListener("install", e=>{
-  e.waitUntil(
-    caches.open(CACHE).then(c=>c.addAll([
-      "./",
-      "./index.html",
-      "./manifest.json"
-    ]))
-  );
-});
-self.addEventListener("fetch", e=>{
-  e.respondWith(
-    caches.match(e.request).then(r=>r||fetch(e.request))
-  );
-});
-
-=========================================================
-【配置（重要）】
-/index.html（このファイル）
-/manifest.json
-/sw.js
-/icons/（ここにアイコン一式）
-  - icon-192.png
-  - icon-512.png
-  - icon-180.png
-  - icon-167.png
-  - icon-152.png
-  - favicon.ico
-=========================================================
--->
 </body>
 </html>
