@@ -5,9 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>シングル・ダブルス乱数表（テニス・バド）</title>
 
-<!-- PWA（任意：manifest.json / sw.js があるなら効く） -->
+<!-- PWA（manifest.json / sw.js があるなら効く） -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#111827">
+
+<!-- アイコン（icons/ に配置すると効く） -->
+<link rel="icon" href="icons/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 <style>
 /* ===== ベース ===== */
@@ -348,8 +356,8 @@ function pickByLeastGames(list, counts, need, balanceOn){
 const u = (a,b) => (a<b ? `${a}~${b}` : `${b}~${a}`);
 const playerTok = (sex, n) => `${sex}${n}`;                    // M1 / F3
 const singlesKey = (p,q) => (p<q ? `${p}~${q}` : `${q}~${p}`);  // 対戦（順不同）
-const pairKeyMixed = (m,f) => `X:${m}|${f}`;                   // (旧)混合ペアキー
-const pairKeySame  = (sex,a,b) => `${sex}:${u(a,b)}`;          // 同性ペア
+const pairKeyMixed = (m,f) => `X:${m}|${f}`;                   // 旧：混合ペア
+const pairKeySame  = (sex,a,b) => `${sex}:${u(a,b)}`;          // 同性ペア（旧：男女別で使用）
 const matchupKey = (A,B) => {
   const a = JSON.stringify(A), b = JSON.stringify(B);
   return (a<b) ? `${a}||${b}` : `${b}||${a}`;
@@ -357,7 +365,7 @@ const matchupKey = (A,B) => {
 const oppKey = (p,q) => (p<q ? `${p}~${q}` : `${q}~${p}`);
 
 /* =========================
-   トークン共通処理（男女混在ペア対応）
+   トークン共通（混合ダブルスで同性ペアも許可するため）
 ========================= */
 const sexOfTok = t => (t && t[0]) || "";
 const numOfTok = t => Number(String(t).slice(1));
@@ -368,7 +376,6 @@ const renderTokBox = (t)=>{
 };
 // ペアキー（順不同）: 例 "M1~F3" / "M2~M7" / "F4~F8"
 const pairKeyTok = (a,b) => (a<b ? `${a}~${b}` : `${b}~${a}`);
-
 function isMixedPairTok(a,b){
   const sa = sexOfTok(a), sb = sexOfTok(b);
   return (sa==="M" && sb==="F") || (sa==="F" && sb==="M");
@@ -480,10 +487,12 @@ function maxPairsGeneral(playersTokens, usedSet, keyFn){
       return;
     }
 
+    // a を休にする
     remaining.delete(a);
     dfs(current);
     remaining.add(a);
 
+    // a を誰かと組む
     for(const b of avail.get(a)){
       if(!remaining.has(b)) continue;
       remaining.delete(a); remaining.delete(b);
@@ -551,12 +560,10 @@ function maxPairsGeneralPreferMixed(playersTokens, usedSet, keyFn){
       return;
     }
 
-    // a を休にする
     remaining.delete(a);
     dfs(current);
     remaining.add(a);
 
-    // a を誰かと組む
     for(const b of avail.get(a)){
       if(!remaining.has(b)) continue;
       remaining.delete(a); remaining.delete(b);
@@ -651,7 +658,7 @@ function generate(){
   const womenGames = initCounts(womenCount);
 
   const tracking = {
-    doublesPairsUsed: new Set(),     // ここに pairKeyTok / pairKeySame / pairKeyMixed など全部入る
+    doublesPairsUsed: new Set(),     // ★ 混合ダブルスは pairKeyTok で管理（同性ペアも含む）
     doublesMatchupsUsed: new Set(),
     opponentsUsed: new Set(),
     singlesMatchupsUsed: new Set()
@@ -673,11 +680,13 @@ function generate(){
       const roundDiv = wrapRound(r);
 
       if(gameType==="singles"){
+        /* ===== 混合シングルス ===== */
         const needMatches = courts;
         const useMF = (mixedSinglesRule==="mf") || (mixedSinglesRule==="alt" && (r%2===0));
         let matches = Array.from({length:courts}, ()=>null);
 
         if(useMF){
+          // 男 vs 女
           if(menCount>0 && womenCount>0){
             if(avoidMode==="strict"){
               const poolSize = Math.min(Math.max(needMatches+2, needMatches), men.length, women.length);
@@ -730,6 +739,7 @@ function generate(){
             }
           }
         } else {
+          // 性別不問
           const allTokens = men.map(m=>playerTok("M",m)).concat(women.map(f=>playerTok("F",f)));
           const needPlayers = needMatches*2;
 
@@ -788,6 +798,7 @@ function generate(){
           }
         }
 
+        // 試合数加算 & 履歴
         for(const ab of matches){
           if(!ab) continue;
           const [a,b]=ab;
@@ -811,18 +822,20 @@ function generate(){
         out.appendChild(roundDiv);
 
       } else {
-        // ===== 混合ダブルス（ミックス優先＋同性ペアも可＋均等化） =====
+        /* ===== 混合ダブルス（ミックス優先＋同性ペアも可＋均等化） ===== */
         const courtsN = courts;
         const needPairs = courtsN * 2;
         const needPlayers = courtsN * 4;
 
+        // 全プレイヤーをトークン化
         const allTokens = men.map(m=>playerTok("M",m)).concat(women.map(f=>playerTok("F",f)));
 
+        // トークンごとの試合数（均等化用）
         const tokenGames = {};
         for(const m of men) tokenGames[playerTok("M",m)] = menGames[m] ?? 0;
         for(const f of women) tokenGames[playerTok("F",f)] = womenGames[f] ?? 0;
 
-        // 出場候補（均等化：試合数が少ない人優先）
+        // 出場候補（試合数が少ない人優先＋少し多めにプール）
         const poolSize = Math.min(allTokens.length, Math.max(needPlayers + 4, needPlayers));
         const pool = pickByLeastGames(allTokens, tokenGames, poolSize, balanceOn);
 
@@ -854,10 +867,10 @@ function generate(){
               sumGames += (tokenGames[a] ?? 0) + (tokenGames[b] ?? 0);
             }
 
-            // 重み（混合優先を強くする）
+            // 重み（混合優先の強さ：必要ならここを上げる）
             const wSame = 120;   // 同性ペアのペナルティ
             const wRep  = 200;   // 既出ペアのペナルティ
-            const wGames = 1;    // 試合数（少ない人を優先する方向）
+            const wGames = 1;    // なるべく試合数が少ない人を選ぶ
 
             return sameSex*wSame + repPair*wRep + sumGames*wGames;
           };
@@ -869,6 +882,7 @@ function generate(){
         let matches = Array.from({length:courtsN}, ()=>[null,null]);
 
         if(avoidMode==="soft"){
+          // 相手被りもできるだけ回避
           const makeOppEdgesTok = (p1,p2)=>{
             const A=[p1[0],p1[1]];
             const B=[p2[0],p2[1]];
@@ -908,7 +922,7 @@ function generate(){
           }
         }
 
-        // カウント＆履歴
+        // 試合数加算＆履歴
         for(const [p1,p2] of matches){
           if(p1){
             tracking.doublesPairsUsed.add(pairKeyTok(p1[0],p1[1]));
@@ -936,21 +950,19 @@ function generate(){
         // 表示
         roundDiv.appendChild(renderTableRows(courtsN, (c)=>{
           const [p1,p2] = matches[c];
-
           const L = p1
             ? `<span class="pair">${renderTokBox(p1[0])}${renderTokBox(p1[1])}</span>`
             : boxRest();
           const R = p2
             ? `<span class="pair">${renderTokBox(p2[0])}${renderTokBox(p2[1])}</span>`
             : boxRest();
-
           return `<div class="match">${L}<span class="vs">vs</span>${R}</div>`;
         }));
         out.appendChild(roundDiv);
       }
 
     } else {
-      // ===== 男女別 =====
+      /* ===== 男女別 ===== */
       const bc = Math.max(0, Number(document.getElementById("boysCourts").value||0));
       const gc = Math.max(0, Number(document.getElementById("girlsCourts").value||0));
 
@@ -1263,6 +1275,7 @@ function closeMonitor(){
 function showRound(i){
   if(__roundData.length===0) return;
 
+  // 2R表示は「最後-1」で止める（例：第9・第10）
   if(__monitorPageSize===2){
     const maxStart = Math.max(0, __roundData.length - 2);
     i = Math.max(0, Math.min(i, maxStart));
@@ -1322,6 +1335,7 @@ function showRound(i){
   fitMonitorRound();
 }
 
+/* ★ スライド式 + 最後は第9・第10で止める */
 function nextRound(){
   if(__roundData.length===0) return;
 
@@ -1370,5 +1384,56 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 }
 </script>
+
+<!--
+=========================================================
+【コピペ用：manifest.json】（別ファイルで保存）
+=========================================================
+{
+  "name": "シングル・ダブルス乱数表（テニス・バド）",
+  "short_name": "乱数表",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#111827",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
+
+=========================================================
+【コピペ用：sw.js】（別ファイルで保存）
+=========================================================
+const CACHE = "rands-table-v1";
+self.addEventListener("install", e=>{
+  e.waitUntil(
+    caches.open(CACHE).then(c=>c.addAll([
+      "./",
+      "./index.html",
+      "./manifest.json"
+    ]))
+  );
+});
+self.addEventListener("fetch", e=>{
+  e.respondWith(
+    caches.match(e.request).then(r=>r||fetch(e.request))
+  );
+});
+
+=========================================================
+【配置（重要）】
+/index.html（このファイル）
+/manifest.json
+/sw.js
+/icons/（ここにアイコン一式）
+  - icon-192.png
+  - icon-512.png
+  - icon-180.png
+  - icon-167.png
+  - icon-152.png
+  - favicon.ico
+=========================================================
+-->
 </body>
 </html>
